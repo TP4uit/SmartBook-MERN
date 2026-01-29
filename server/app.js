@@ -4,6 +4,8 @@ const cors = require('cors');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
+const productRoutes = require('./routes/productRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 // Load config
 dotenv.config();
@@ -20,6 +22,8 @@ app.use(morgan('dev'));  // Log request ra console
 
 // Routes Placeholder (Test server)
 app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
 app.get('/', (req, res) => {
   res.send('API SmartBook is running...');
 });
