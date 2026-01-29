@@ -4,10 +4,13 @@ const {
   getProducts, 
   getProductById, 
   createProduct,
-  deleteProduct 
+  deleteProduct,
+  searchSemantic 
 } = require('../controllers/productController');
 
 // Định nghĩa các đường dẫn
+router.get('/search/semantic', searchSemantic);
+
 router.route('/')
   .get(getProducts)
   .post(createProduct);

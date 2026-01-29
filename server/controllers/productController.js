@@ -1,4 +1,5 @@
 const Book = require('../models/Book');
+const { getEmbedding } = require('../utils/ai');
 
 // @desc    Lấy tất cả sách (Có lọc & phân trang)
 // @route   GET /api/products
@@ -52,12 +53,16 @@ const getProductById = async (req, res) => {
 // @access  Private (Seller/Admin)
 const createProduct = async (req, res) => {
   try {
-    // Giả sử req.user.id đã có nhờ middleware auth (sẽ làm sau)
-    // Tạm thời lấy shop_id từ body để test Postman
     const { 
       title, author, description, price, original_price, 
       category, stock_quantity, images, shop_id 
     } = req.body;
+
+    // 1. Tạo chuỗi văn bản cần vector hóa (Kết hợp tên + mô tả + tác giả)
+    const textToEmbed = `${title} ${description} ${author} ${category}`;
+    
+    // 2. Gọi AI tạo vector (Chờ một chút)
+    const vector = await getEmbedding(textToEmbed);
 
     const book = new Book({
       title,
@@ -68,7 +73,8 @@ const createProduct = async (req, res) => {
       category,
       stock_quantity,
       images,
-      shop_id, // Sau này sẽ là req.user._id
+      shop_id,
+      embedding_vector: vector, // <-- Lưu vector vào DB
       is_active: true
     });
 
@@ -102,4 +108,62 @@ module.exports = {
   getProductById,
   createProduct,
   deleteProduct
+};
+
+
+// @desc    Tìm kiếm bằng AI (Vector Search)
+// @route   GET /api/products/search/semantic
+const searchSemantic = async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query) {
+      return res.status(400).json({ message: 'Vui lòng nhập từ khóa' });
+    }
+
+    // 1. Chuyển câu query của người dùng thành Vector
+    const queryVector = await getEmbedding(query);
+
+    // 2. Tìm kiếm trong MongoDB bằng Aggregation Pipeline
+    const products = await Book.aggregate([
+      {
+        "$vectorSearch": {
+          "index": "vector_index", // Tên index bạn đã tạo trên Atlas (Giai đoạn 1)
+          "path": "embedding_vector",
+          "queryVector": queryVector,
+          "numCandidates": 100, // Số lượng ứng viên quét qua
+          "limit": 10 // Số kết quả trả về
+        }
+      },
+      {
+        "$project": {
+          title: 1,
+          price: 1,
+          images: 1,
+          author: 1,
+          description: 1,
+          shop_id: 1,
+          score: { $meta: "vectorSearchScore" } // Trả về độ chính xác (0-1)
+        }
+      },
+      {
+  "$match": {
+    "score": { $gte: 0.8 } // Chỉ lấy sách có độ giống >= 60%
+    }
+      }
+    ]);
+
+    res.json(products);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Nhớ export thêm hàm này
+module.exports = {
+  getProducts,
+  getProductById,
+  createProduct,
+  deleteProduct,
+  searchSemantic // <-- Thêm vào đây
 };
