@@ -72,4 +72,76 @@ const loginUser = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, loginUser };
+// @desc    Lấy thông tin User đang đăng nhập
+// @route   GET /api/auth/profile
+// @access  Private
+const getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (user) {
+      res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        role: user.role,
+        shop_info: user.shop_info // Nếu là seller
+      });
+    } else {
+      res.status(404).json({ message: 'User không tồn tại' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Cập nhật thông tin User
+// @route   PUT /api/auth/profile
+// @access  Private
+const updateUserProfile = async (req, res) => {
+  try {
+    console.log("Dữ liệu nhận được từ Postman:", req.body);
+
+    const user = await User.findById(req.user._id);
+
+    if (user) {
+      user.name = req.body.name || user.name;
+      user.phone = req.body.phone || user.phone;
+      user.address = req.body.address || user.address;
+      
+      // Nếu có gửi password mới thì đổi, không thì thôi
+      if (req.body.password) {
+        user.password = req.body.password; 
+        // Middleware 'pre save' trong Model User sẽ tự mã hóa
+      }
+
+      // Cập nhật thông tin Shop (nếu là Seller)
+      if (user.role === 'seller' && req.body.shop_info) {
+        user.shop_info = {
+          ...user.shop_info,
+          ...req.body.shop_info
+        };
+      }
+
+      const updatedUser = await user.save();
+
+      res.json({
+        _id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+        address: updatedUser.address,
+        role: updatedUser.role,
+        token: generateToken(updatedUser._id), // Cấp lại token mới
+      });
+    } else {
+      res.status(404).json({ message: 'User không tồn tại' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Nhớ export thêm 2 hàm mới
+module.exports = { registerUser, loginUser, getUserProfile, updateUserProfile };

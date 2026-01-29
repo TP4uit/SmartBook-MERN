@@ -4,19 +4,27 @@ const {
   getProducts, 
   getProductById, 
   createProduct,
+  updateProduct,
   deleteProduct,
-  searchSemantic 
+  searchSemantic,
+  getMyProducts 
 } = require('../controllers/productController');
+const { protect } = require('../middleware/authMiddleware');
 
-// Định nghĩa các đường dẫn
+// Route Search để lên đầu để tránh trùng với :id
 router.get('/search/semantic', searchSemantic);
 
+// Route cho Seller xem hàng của mình
+router.get('/seller/my-products', protect, getMyProducts);
+
+// Các route cơ bản
 router.route('/')
   .get(getProducts)
-  .post(createProduct);
+  .post(protect, createProduct);
 
 router.route('/:id')
   .get(getProductById)
-  .delete(deleteProduct);
+  .put(protect, updateProduct) // Thêm PUT để sửa
+  .delete(protect, deleteProduct);
 
 module.exports = router;
