@@ -11,6 +11,13 @@ const orderSchema = mongoose.Schema({
     required: true,
     ref: 'User', // Shop cũng là 1 User (role: seller)
   },
+  // --- BỔ SUNG QUAN TRỌNG: Mã giao dịch tổng ---
+  transaction_ref: { 
+    type: String, 
+    required: true,
+    index: true 
+  },
+  // ---------------------------------------------
   orderItems: [
     {
       name: { type: String, required: true },
@@ -33,9 +40,9 @@ const orderSchema = mongoose.Schema({
   paymentMethod: {
     type: String,
     required: true,
-    default: 'COD', // Mặc định thanh toán khi nhận hàng
+    default: 'COD',
   },
-  paymentResult: { // Dùng cho thanh toán Online (Momo/Stripe) sau này
+  paymentResult: {
     id: { type: String },
     status: { type: String },
     update_time: { type: String },
