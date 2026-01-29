@@ -4,20 +4,20 @@ const orderSchema = mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
-    ref: 'User',
+    ref: 'User', // Người mua
   },
   shop_id: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
-    ref: 'User', // Shop cũng là 1 User (role: seller)
+    ref: 'User', // Người bán (Trong mô hình mới, đây cũng là User)
   },
-  // --- BỔ SUNG QUAN TRỌNG: Mã giao dịch tổng ---
+  // --- BỔ SUNG: Mã giao dịch tổng để gom nhóm đơn tách ---
   transaction_ref: { 
     type: String, 
     required: true,
     index: true 
   },
-  // ---------------------------------------------
+  // -----------------------------------------------------
   orderItems: [
     {
       name: { type: String, required: true },
@@ -42,14 +42,7 @@ const orderSchema = mongoose.Schema({
     required: true,
     default: 'COD',
   },
-  paymentResult: {
-    id: { type: String },
-    status: { type: String },
-    update_time: { type: String },
-    email_address: { type: String },
-  },
   itemsPrice: { type: Number, required: true, default: 0.0 },
-  taxPrice: { type: Number, required: true, default: 0.0 },
   shippingPrice: { type: Number, required: true, default: 0.0 },
   totalPrice: { type: Number, required: true, default: 0.0 },
   isPaid: { type: Boolean, required: true, default: false },
