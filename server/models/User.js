@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema({
     enum: ['customer', 'seller', 'admin'], 
     default: 'customer' 
   },
-  // Nếu là Seller thì có thêm thông tin Shop
+  // Thông tin mở rộng cho Seller
   shop_info: {
     shop_name: String,
     shop_avatar: String,
@@ -21,11 +21,18 @@ const userSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Middleware mã hóa mật khẩu trước khi lưu
+// Middleware: Mã hóa mật khẩu trước khi lưu vào DB
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) next();
+  if (!this.isModified('password')) {
+    next();
+  }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
+
+// Method: Kiểm tra mật khẩu khi đăng nhập
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
 
 module.exports = mongoose.model('User', userSchema);

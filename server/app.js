@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
 
 // Load config
 dotenv.config();
@@ -18,6 +19,7 @@ app.use(express.json()); // Để parse JSON body
 app.use(morgan('dev'));  // Log request ra console
 
 // Routes Placeholder (Test server)
+app.use('/api/auth', authRoutes);
 app.get('/', (req, res) => {
   res.send('API SmartBook is running...');
 });
