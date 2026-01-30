@@ -3,8 +3,8 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-route
 import { Toaster } from './components/ui/sonner';
 
 // Import Screens (Đảm bảo các file này cũng nên đổi đuôi thành .tsx dần nhé)
-import { LoginScreen } from './pages/screens/LoginScreen';
-import { RegisterScreen } from './pages/screens/RegisterScreen';
+import { LoginScreen } from './pages/LoginScreen';
+import { RegisterScreen } from './pages/RegisterScreen';
 import { HomeScreen } from './pages/screens/HomeScreen';
 import { ProfileScreen } from './pages/screens/ProfileScreen';
 import { CartScreen } from './pages/screens/CartScreen';
