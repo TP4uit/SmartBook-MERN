@@ -1,35 +1,56 @@
 const Book = require('../models/Book');
-const { getEmbedding } = require('../utils/ai');
+const { generateEmbedding } = require('../utils/ai'); 
 
-// ... (Giữ nguyên các hàm getProducts, getProductById, createProduct, deleteProduct)
-
-// @desc    Lấy tất cả sách
+// @desc    Lấy tất cả sách (Có lọc, tìm kiếm keyword, phân trang)
+// @route   GET /api/products
+// @access  Public
 const getProducts = async (req, res) => {
   try {
     const pageSize = 12;
     const page = Number(req.query.pageNumber) || 1;
+
+    // Filter cơ bản
     const keyword = req.query.keyword
       ? { title: { $regex: req.query.keyword, $options: 'i' } }
       : {};
 
-    const count = await Book.countDocuments({ ...keyword });
-    const products = await Book.find({ ...keyword })
+    const category = req.query.category ? { category: req.query.category } : {};
+    
+    // Filter theo Shop
+    const shop = req.query.shopId ? { shop_id: req.query.shopId } : {};
+
+    // Filter theo Giá
+    let priceFilter = {};
+    if (req.query.minPrice) priceFilter.$gte = Number(req.query.minPrice);
+    if (req.query.maxPrice) priceFilter.$lte = Number(req.query.maxPrice);
+    const price = (req.query.minPrice || req.query.maxPrice) ? { price: priceFilter } : {};
+
+    const query = { ...keyword, ...category, ...price, ...shop };
+
+    const count = await Book.countDocuments(query);
+    const books = await Book.find(query)
+      .populate('shop_id', 'name email shop_info')
       .limit(pageSize)
       .skip(pageSize * (page - 1))
       .sort({ createdAt: -1 });
 
-    res.json({ products, page, pages: Math.ceil(count / pageSize) });
+    res.json({ books, page, pages: Math.ceil(count / pageSize), total: count });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Lấy chi tiết sách
+// @desc    Lấy chi tiết 1 cuốn sách
+// @route   GET /api/products/:id
+// @access  Public
 const getProductById = async (req, res) => {
   try {
-    const product = await Book.findById(req.params.id).populate('shop_id', 'name email shop_info');
-    if (product) {
-      res.json(product);
+    const book = await Book.findById(req.params.id)
+      .populate('shop_id', 'name shop_info')
+      .populate('reviews.user', 'name avatar'); // Populate thêm info người review
+
+    if (book) {
+      res.json(book);
     } else {
       res.status(404).json({ message: 'Không tìm thấy sách' });
     }
@@ -38,38 +59,86 @@ const getProductById = async (req, res) => {
   }
 };
 
-// @desc    Tạo sách mới
+// @desc    Tạo sách mới (Kèm tạo Vector AI)
+// @route   POST /api/products
+// @access  Private (Seller)
 const createProduct = async (req, res) => {
   try {
-    const { 
-      title, author, description, price, original_price, 
-      category, stock_quantity, images, shop_id 
-    } = req.body;
+    const { title, price, description, image, category, stock_quantity, author } = req.body;
 
-    const textToEmbed = `${title} ${description} ${author} ${category}`;
-    const vector = await getEmbedding(textToEmbed);
+    if (!title || !price || !description) {
+      return res.status(400).json({ message: 'Vui lòng nhập đủ thông tin' });
+    }
+
+    // 1. Tạo Vector Embedding
+    let embedding_vector = [];
+    try {
+      if (description) {
+        embedding_vector = await generateEmbedding(description);
+      }
+    } catch (aiError) {
+      console.error("Lỗi tạo AI Vector (Create):", aiError.message);
+      // Vẫn cho tạo sách nhưng log lỗi
+    }
 
     const book = new Book({
-      title, author, description, price, original_price, 
-      category, stock_quantity, images, shop_id,
-      embedding_vector: vector,
-      is_active: true
+      shop_id: req.user._id,
+      title,
+      price,
+      description,
+      image,
+      category,
+      stock_quantity,
+      author,
+      embedding_vector,
+      reviews: [],
+      rating: 0,
+      numReviews: 0
     });
 
     const createdBook = await book.save();
     res.status(201).json(createdBook);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Xóa sách
-const deleteProduct = async (req, res) => {
+// @desc    Cập nhật sách (Quan trọng: Cập nhật lại Vector nếu đổi mô tả)
+// @route   PUT /api/products/:id
+// @access  Private (Seller)
+const updateProduct = async (req, res) => {
   try {
-    const product = await Book.findById(req.params.id);
-    if (product) {
-      await product.deleteOne();
-      res.json({ message: 'Đã xóa sách thành công' });
+    const { title, price, description, image, category, stock_quantity, author } = req.body;
+    const book = await Book.findById(req.params.id);
+
+    if (book) {
+      // Kiểm tra quyền sở hữu
+      if (book.shop_id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Không có quyền sửa sách này' });
+      }
+
+      // LOGIC AI QUAN TRỌNG:
+      // Nếu mô tả thay đổi -> Cần tạo lại Vector mới để việc tìm kiếm ngữ nghĩa vẫn đúng
+      if (description && description !== book.description) {
+         try {
+           console.log("Mô tả thay đổi, đang cập nhật lại Vector AI...");
+           book.embedding_vector = await generateEmbedding(description);
+         } catch (aiError) {
+           console.error("Lỗi cập nhật AI Vector:", aiError.message);
+           // Không chặn update, giữ vector cũ hoặc null tuỳ logic
+         }
+      }
+
+      book.title = title || book.title;
+      book.price = price || book.price;
+      book.description = description || book.description;
+      book.image = image || book.image;
+      book.category = category || book.category;
+      book.stock_quantity = stock_quantity || book.stock_quantity;
+      book.author = author || book.author;
+
+      const updatedBook = await book.save();
+      res.json(updatedBook);
     } else {
       res.status(404).json({ message: 'Không tìm thấy sách' });
     }
@@ -78,124 +147,62 @@ const deleteProduct = async (req, res) => {
   }
 };
 
-// --- LOGIC SEARCH CẢI TIẾN ---
-const searchSemantic = async (req, res) => {
+// @desc    Xóa sách
+// @route   DELETE /api/products/:id
+// @access  Private (Seller/Admin)
+const deleteProduct = async (req, res) => {
   try {
-    const { query } = req.query;
-    if (!query) return res.status(400).json({ message: 'Vui lòng nhập từ khóa' });
+    const book = await Book.findById(req.params.id);
 
-    let products = [];
-    let searchMethod = 'AI Semantic';
-
-    // 1. Tìm bằng AI Vector
-    const queryVector = await getEmbedding(query);
-    
-    if (queryVector.length > 0) {
-      products = await Book.aggregate([
-        {
-          "$vectorSearch": {
-            "index": "vector_index",
-            "path": "embedding_vector",
-            "queryVector": queryVector,
-            "numCandidates": 100, // Quét 100 ứng viên
-            "limit": 20 // Lấy 20 kết quả tốt nhất
-          }
-        },
-        {
-          "$project": {
-            title: 1, price: 1, images: 1, author: 1, description: 1, shop_id: 1,
-            score: { $meta: "vectorSearchScore" }
-          }
-        },
-        {
-          // Lọc bớt kết quả nhiễu (dưới 0.75 coi như không liên quan)
-          "$match": { "score": { $gte: 0.75 } } 
-        }
-      ]);
+    if (book) {
+      if (book.shop_id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Không có quyền xóa sách này' });
+      }
+      await book.deleteOne();
+      res.json({ message: 'Đã xóa sách' });
+    } else {
+      res.status(404).json({ message: 'Không tìm thấy sách' });
     }
-
-    // --- CẢI TIẾN: RE-RANKING THỦ CÔNG ---
-    // Vì AI đôi khi "ngáo" (như vụ Conan vs Huyền Vũ Bão), ta sẽ ưu tiên thủ công:
-    // Nếu Tiêu đề hoặc Mô tả chứa chính xác từ khóa --> Đẩy lên đầu.
-    if (products.length > 0) {
-      const lowerQuery = query.toLowerCase();
-      products.sort((a, b) => {
-        const aTitleMatch = a.title.toLowerCase().includes(lowerQuery);
-        const bTitleMatch = b.title.toLowerCase().includes(lowerQuery);
-        const aDescMatch = a.description.toLowerCase().includes(lowerQuery);
-        const bDescMatch = b.description.toLowerCase().includes(lowerQuery);
-
-        // 1. Ưu tiên khớp Tiêu đề
-        if (aTitleMatch && !bTitleMatch) return -1;
-        if (!aTitleMatch && bTitleMatch) return 1;
-
-        // 2. Ưu tiên khớp Mô tả
-        if (aDescMatch && !bDescMatch) return -1;
-        if (!aDescMatch && bDescMatch) return 1;
-
-        // 3. Nếu ngang nhau thì so điểm AI
-        return b.score - a.score;
-      });
-    }
-
-    // 2. Fallback: Nếu AI trả về rỗng (do lọc quá chặt hoặc lỗi), tìm bằng từ khóa thường
-    if (products.length === 0) {
-      searchMethod = 'Fallback (Keyword)';
-      products = await Book.find({
-        $or: [
-            { title: { $regex: query, $options: 'i' } },
-            { description: { $regex: query, $options: 'i' } } // Tìm thêm trong mô tả cho chắc
-        ]
-      }).limit(10).select('title price images author description shop_id');
-    }
-
-    res.json({ method: searchMethod, count: products.length, products });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Lấy danh sách sách của User hiện tại (Seller Dashboard)
-// @route   GET /api/products/seller/my-products
+// @desc    Tạo đánh giá sản phẩm (Review)
+// @route   POST /api/products/:id/reviews
 // @access  Private
-const getMyProducts = async (req, res) => {
+const createProductReview = async (req, res) => {
   try {
-    // Chỉ tìm sách có shop_id trùng với user đang login
-    const products = await Book.find({ shop_id: req.user._id }).sort({ createdAt: -1 });
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    const { rating, comment } = req.body;
+    const book = await Book.findById(req.params.id);
 
-// @desc    Cập nhật thông tin sách
-// @route   PUT /api/products/:id
-// @access  Private (Chỉ chủ sách mới được sửa)
-const updateProduct = async (req, res) => {
-  try {
-    const { title, price, description, stock_quantity, images, category } = req.body;
-    
-    const product = await Book.findById(req.params.id);
+    if (book) {
+      // Kiểm tra xem user đã review chưa
+      const alreadyReviewed = book.reviews.find(
+        (r) => r.user.toString() === req.user._id.toString()
+      );
 
-    if (product) {
-      // Bảo mật: Kiểm tra xem người sửa có phải chủ sách không
-      if (product.shop_id.toString() !== req.user._id.toString()) {
-        return res.status(403).json({ message: 'Bạn không có quyền sửa sách này' });
+      if (alreadyReviewed) {
+        return res.status(400).json({ message: 'Bạn đã đánh giá sách này rồi' });
       }
 
-      product.title = title || product.title;
-      product.price = price || product.price;
-      product.description = description || product.description;
-      product.stock_quantity = stock_quantity || product.stock_quantity;
-      product.images = images || product.images;
-      product.category = category || product.category;
+      const review = {
+        name: req.user.name,
+        rating: Number(rating),
+        comment,
+        user: req.user._id,
+      };
 
-      // Lưu ý: Nếu sửa title/desc thì Vector cũ sẽ không còn đúng. 
-      // Tuy nhiên để tối ưu hiệu năng, ta tạm thời KHÔNG tạo lại vector ngay lập tức 
-      // (hoặc có thể tạo background job sau này).
+      book.reviews.push(review);
+      book.numReviews = book.reviews.length;
+      
+      // Tính lại điểm trung bình
+      book.rating =
+        book.reviews.reduce((acc, item) => item.rating + acc, 0) /
+        book.reviews.length;
 
-      const updatedProduct = await product.save();
-      res.json(updatedProduct);
+      await book.save();
+      res.status(201).json({ message: 'Đã thêm đánh giá' });
     } else {
       res.status(404).json({ message: 'Không tìm thấy sách' });
     }
@@ -208,8 +215,7 @@ module.exports = {
   getProducts,
   getProductById,
   createProduct,
+  updateProduct,
   deleteProduct,
-  searchSemantic,
-  getMyProducts, // <-- Export hàm mới
-  updateProduct  // <-- Export hàm mới
+  createProductReview,
 };

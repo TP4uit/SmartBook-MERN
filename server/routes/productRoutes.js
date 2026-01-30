@@ -1,30 +1,24 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  getProducts, 
-  getProductById, 
+const {
+  getProducts,
+  getProductById,
   createProduct,
   updateProduct,
   deleteProduct,
-  searchSemantic,
-  getMyProducts 
+  createProductReview,
 } = require('../controllers/productController');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, seller, admin } = require('../middleware/authMiddleware'); // Giả sử bạn có middleware này
 
-// Route Search để lên đầu để tránh trùng với :id
-router.get('/search/semantic', searchSemantic);
-
-// Route cho Seller xem hàng của mình
-router.get('/seller/my-products', protect, getMyProducts);
-
-// Các route cơ bản
 router.route('/')
   .get(getProducts)
-  .post(protect, createProduct);
+  .post(protect, seller, createProduct);
 
 router.route('/:id')
   .get(getProductById)
-  .put(protect, updateProduct) // Thêm PUT để sửa
-  .delete(protect, deleteProduct);
+  .put(protect, seller, updateProduct) // Thêm route Update
+  .delete(protect, deleteProduct);     // Thêm route Delete (Seller/Admin đều xoá được logic trong controller)
+
+router.route('/:id/reviews').post(protect, createProductReview); // Thêm route Review
 
 module.exports = router;

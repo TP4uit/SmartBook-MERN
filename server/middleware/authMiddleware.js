@@ -1,22 +1,22 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// Middleware xác thực User (Kiểm tra Token)
 const protect = async (req, res, next) => {
   let token;
 
-  // Kiểm tra header có dạng: "Bearer eyJhbGciOiJIUz..."
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer')
   ) {
     try {
-      // Lấy token (bỏ chữ Bearer)
+      // Lấy token từ header (Bearer <token>)
       token = req.headers.authorization.split(' ')[1];
 
       // Giải mã token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Tìm user trong DB và gán vào req.user (trừ field password)
+      // Lấy thông tin user từ DB (trừ password)
       req.user = await User.findById(decoded.id).select('-password');
 
       next();
@@ -27,8 +27,26 @@ const protect = async (req, res, next) => {
   }
 
   if (!token) {
-    res.status(401).json({ message: 'Không có token, quyền truy cập bị từ chối' });
+    res.status(401).json({ message: 'Không tìm thấy Token, ủy quyền thất bại' });
   }
 };
 
-module.exports = { protect };
+// Middleware kiểm tra quyền Seller
+const seller = (req, res, next) => {
+  if (req.user && (req.user.role === 'seller' || req.user.role === 'admin')) {
+    next();
+  } else {
+    res.status(403).json({ message: 'Chỉ dành cho tài khoản Người bán (Seller)' });
+  }
+};
+
+// Middleware kiểm tra quyền Admin
+const admin = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    res.status(403).json({ message: 'Chỉ dành cho Quản trị viên (Admin)' });
+  }
+};
+
+module.exports = { protect, seller, admin };

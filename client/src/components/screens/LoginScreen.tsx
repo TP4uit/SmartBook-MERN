@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import api from '../../services/api';
+import { toast } from 'sonner'; // Giả sử bạn đã cài sonner, hoặc dùng alert thường
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -10,9 +12,40 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLogin, onNavigateRegister }: LoginScreenProps) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const { data } = await api.post('/auth/login', { email, password });
+      
+      // 1. Lưu token và thông tin user
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userInfo', JSON.stringify(data));
+      
+      // 2. Thông báo thành công
+      // toast.success("Đăng nhập thành công!"); 
+      
+      // 3. Chuyển hướng (gọi callback về App.tsx)
+      onLogin(); 
+
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || "Đăng nhập thất bại. Vui lòng thử lại.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full bg-white">
-      {/* Left: Inspiring Image */}
+      {/* Left: Inspiring Image (Giữ nguyên UI cũ) */}
       <div className="hidden lg:block w-1/2 relative overflow-hidden">
         <div className="absolute inset-0 bg-[#008080]/20 mix-blend-multiply z-10" />
         <img 
@@ -42,10 +75,24 @@ export function LoginScreen({ onLogin, onNavigateRegister }: LoginScreenProps) {
             <p className="text-gray-500">Chào mừng bạn trở lại với SmartBook</p>
           </div>
 
-          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); onLogin(); }}>
+          <form className="space-y-6" onSubmit={handleLogin}>
+            {error && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" /> {error}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="name@example.com" className="bg-gray-50 border-gray-200" required />
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="name@example.com" 
+                className="bg-gray-50 border-gray-200" 
+                required 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -54,11 +101,18 @@ export function LoginScreen({ onLogin, onNavigateRegister }: LoginScreenProps) {
                   Quên mật khẩu?
                 </a>
               </div>
-              <Input id="password" type="password" required className="bg-gray-50 border-gray-200" />
+              <Input 
+                id="password" 
+                type="password" 
+                required 
+                className="bg-gray-50 border-gray-200"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)} 
+              />
             </div>
             
-            <Button type="submit" className="w-full bg-[#008080] hover:bg-[#006666] text-white py-6 text-lg shadow-lg shadow-[#008080]/20">
-              Đăng Nhập
+            <Button type="submit" disabled={isLoading} className="w-full bg-[#008080] hover:bg-[#006666] text-white py-6 text-lg shadow-lg shadow-[#008080]/20">
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Đăng Nhập"}
             </Button>
           </form>
 

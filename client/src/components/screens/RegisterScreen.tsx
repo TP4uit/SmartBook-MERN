@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { Sparkles, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import api from '../../services/api';
 
 interface RegisterScreenProps {
   onRegister: () => void;
@@ -10,10 +11,44 @@ interface RegisterScreenProps {
 }
 
 export function RegisterScreen({ onRegister, onNavigateLogin }: RegisterScreenProps) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (password !== confirmPassword) {
+      setError("Mật khẩu xác nhận không khớp!");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const { data } = await api.post('/auth/register', { name, email, password });
+      
+      // Auto login sau khi đăng ký thành công
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userInfo', JSON.stringify(data));
+
+      onRegister(); // Chuyển về Home hoặc Login
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full bg-white">
-      {/* Left: Inspiring Image */}
-      <div className="hidden lg:block w-1/2 relative overflow-hidden">
+       {/* Left: Inspiring Image (Giữ nguyên UI cũ) */}
+       <div className="hidden lg:block w-1/2 relative overflow-hidden">
         <div className="absolute inset-0 bg-[#008080]/20 mix-blend-multiply z-10" />
         <img 
           src="https://images.unsplash.com/photo-1543320996-542b8a0e022c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080" 
@@ -35,44 +70,40 @@ export function RegisterScreen({ onRegister, onNavigateLogin }: RegisterScreenPr
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-[#F5F5DC]/30">
         <div className="w-full max-w-md space-y-8 bg-white p-10 rounded-2xl shadow-xl border border-gray-100">
           <div className="text-center">
-            <div className="mx-auto w-12 h-12 bg-[#008080] rounded-xl flex items-center justify-center mb-4">
+             <div className="mx-auto w-12 h-12 bg-[#008080] rounded-xl flex items-center justify-center mb-4">
               <Sparkles className="h-6 w-6 text-[#FFC107]" />
             </div>
             <h2 className="text-3xl font-bold text-[#008080] mb-2">Đăng ký</h2>
             <p className="text-gray-500">Tạo tài khoản mới tại SmartBook</p>
           </div>
 
-          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); onRegister(); }}>
+          <form className="space-y-6" onSubmit={handleRegister}>
+            {error && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" /> {error}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="name">Họ và tên</Label>
-              <Input id="name" placeholder="Nguyễn Văn A" className="bg-gray-50 border-gray-200" required />
+              <Input id="name" value={name} onChange={e => setName(e.target.value)} required className="bg-gray-50 border-gray-200"/>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="name@example.com" className="bg-gray-50 border-gray-200" required />
+              <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required className="bg-gray-50 border-gray-200"/>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Mật khẩu</Label>
-              <Input id="password" type="password" required className="bg-gray-50 border-gray-200" />
+              <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-gray-50 border-gray-200"/>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Xác nhận mật khẩu</Label>
-              <Input id="confirm-password" type="password" required className="bg-gray-50 border-gray-200" />
+              <Input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required className="bg-gray-50 border-gray-200"/>
             </div>
             
-            <Button type="submit" className="w-full bg-[#008080] hover:bg-[#006666] text-white py-6 text-lg shadow-lg shadow-[#008080]/20 flex items-center justify-center gap-2">
-              Tiếp tục <ArrowRight className="h-5 w-5" />
+            <Button type="submit" disabled={isLoading} className="w-full bg-[#008080] hover:bg-[#006666] text-white py-6 text-lg shadow-lg shadow-[#008080]/20 flex items-center justify-center gap-2">
+              {isLoading ? <Loader2 className="animate-spin" /> : <>Tiếp tục <ArrowRight className="h-5 w-5" /></>}
             </Button>
           </form>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">Hoặc</span>
-            </div>
-          </div>
 
           <div className="text-center text-sm">
             Đã có tài khoản?{' '}
