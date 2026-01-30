@@ -49,27 +49,35 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  // --- QUAN TRỌNG: Khai báo hàm handleNavigate ở đây ---
+  const handleNavigate = (screen: string) => {
+    setCurrentScreen(screen as Screen);
+  };
+  // -----------------------------------------------------
+
   const renderScreen = () => {
     switch (currentScreen) {
       case 'login': return <LoginScreen onLogin={() => setCurrentScreen('home')} onNavigateRegister={() => setCurrentScreen('register')} />;
       case 'register': return <RegisterScreen onRegister={() => setCurrentScreen('profile-from-register')} onNavigateLogin={() => setCurrentScreen('login')} />;
-      case 'home': return <HomeScreen onNavigate={setCurrentScreen} />;
-      case 'marketplace': return <MarketplaceScreen onNavigate={setCurrentScreen} />;
-      case 'product-detail': return <ProductDetailScreen onNavigate={setCurrentScreen} />;
-      case 'cart': return <CartScreen onNavigate={setCurrentScreen} />;
-      case 'checkout': return <CheckoutScreen onNavigate={setCurrentScreen} />;
-      case 'profile': return <ProfileScreen onNavigate={setCurrentScreen} />;
-      case 'profile-from-register': return <ProfileScreen onNavigate={setCurrentScreen} fromRegister={true} />;
-      case 'address-book': return <AddressBookScreen onNavigate={setCurrentScreen} />;
-      case 'order-history': return <OrderHistoryScreen onNavigate={setCurrentScreen} />;
-      case 'seller-dashboard': return <SellerDashboardScreen onNavigate={setCurrentScreen} />;
-      case 'add-product': return <AddProductScreen onNavigate={setCurrentScreen} />;
-      case 'seller-orders': return <SellerOrdersScreen onNavigate={setCurrentScreen} />;
-      case 'seller-finance': return <SellerFinanceScreen onNavigate={setCurrentScreen} />;
-      case 'admin-dashboard': return <AdminDashboardScreen onNavigate={setCurrentScreen} />;
-      case 'admin-users': return <AdminUsersScreen onNavigate={setCurrentScreen} />;
-      case 'admin-shops': return <AdminShopsScreen onNavigate={setCurrentScreen} />;
-      default: return <HomeScreen onNavigate={setCurrentScreen} />;
+      
+      // Sử dụng handleNavigate cho các screen còn lại để tránh lỗi Type Mismatch
+      case 'home': return <HomeScreen onNavigate={handleNavigate} />;
+      case 'marketplace': return <MarketplaceScreen onNavigate={handleNavigate} />;
+      case 'product-detail': return <ProductDetailScreen onNavigate={handleNavigate} />;
+      case 'cart': return <CartScreen onNavigate={handleNavigate} />;
+      case 'checkout': return <CheckoutScreen onNavigate={handleNavigate} />;
+      case 'profile': return <ProfileScreen onNavigate={handleNavigate} />;
+      case 'profile-from-register': return <ProfileScreen onNavigate={handleNavigate} fromRegister={true} />;
+      case 'address-book': return <AddressBookScreen onNavigate={handleNavigate} />;
+      case 'order-history': return <OrderHistoryScreen onNavigate={handleNavigate} />;
+      case 'seller-dashboard': return <SellerDashboardScreen onNavigate={handleNavigate} />;
+      case 'add-product': return <AddProductScreen onNavigate={handleNavigate} />;
+      case 'seller-orders': return <SellerOrdersScreen onNavigate={handleNavigate} />;
+      case 'seller-finance': return <SellerFinanceScreen onNavigate={handleNavigate} />;
+      case 'admin-dashboard': return <AdminDashboardScreen onNavigate={handleNavigate} />;
+      case 'admin-users': return <AdminUsersScreen onNavigate={handleNavigate} />;
+      case 'admin-shops': return <AdminShopsScreen onNavigate={handleNavigate} />;
+      default: return <HomeScreen onNavigate={handleNavigate} />;
     }
   };
 
@@ -81,6 +89,7 @@ export default function App() {
           <Button 
             variant="outline" 
             size="icon" 
+            aria-label="Mở menu điều hướng" // Đã thêm aria-label sửa lỗi Button
             className="rounded-full bg-white shadow-lg border-[#008080] text-[#008080] hover:bg-[#008080] hover:text-white"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
