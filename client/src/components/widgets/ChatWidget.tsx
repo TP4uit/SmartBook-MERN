@@ -19,7 +19,7 @@ export function ChatWidget() {
               </div>
               <div className="font-bold text-sm">Trợ lý ảo SmartBook</div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 rounded p-1">
+            <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 rounded p-1" aria-label="Đóng chat">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -41,7 +41,7 @@ export function ChatWidget() {
                   className="pr-10 bg-gray-50 border-gray-200 focus-visible:ring-[#008080]" 
                   placeholder="Nhập tin nhắn..." 
                 />
-                <button className="absolute right-2 top-1/2 -translate-y-1/2 text-[#008080] hover:bg-[#008080]/10 rounded p-1">
+                <button className="absolute right-2 top-1/2 -translate-y-1/2 text-[#008080] hover:bg-[#008080]/10 rounded p-1" aria-label="Gửi tin nhắn">
                   <Send className="h-4 w-4" />
                 </button>
              </div>
