@@ -1,15 +1,60 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navbar } from '../layout/Navbar';
 import { Footer } from '../layout/Footer';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Sparkles, ArrowRight, Star } from 'lucide-react';
+import api from '../../services/api';
+
+const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600';
+
+interface Book {
+  _id: string;
+  title: string;
+  author?: string;
+  price: number;
+  image?: string;
+  images?: string[];
+  rating?: number;
+  rating_average?: number;
+  numReviews?: number;
+  rating_count?: number;
+}
 
 interface HomeScreenProps {
-  onNavigate: (screen: string) => void;
+  onNavigate: (screen: string, productId?: string) => void;
+}
+
+function getBookImage(book: Book): string {
+  return book.image ?? book.images?.[0] ?? PLACEHOLDER_IMAGE;
+}
+
+function getBookRating(book: Book): number {
+  return book.rating ?? book.rating_average ?? 0;
 }
 
 export function HomeScreen({ onNavigate }: HomeScreenProps) {
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBooks = async () => {
+      try {
+        const { data } = await api.get<{ books: Book[] }>('/products?pageNumber=1');
+        setBooks(data.books ?? []);
+      } catch (err) {
+        console.error('Fetch products error:', err);
+        setBooks([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBooks();
+  }, []);
+
+  const aiSuggestions = books.slice(0, 5);
+  const bestSellers = books.slice(0, 10);
+
   return (
     <div className="flex flex-col min-h-screen bg-[#F5F5DC]">
       <Navbar onNavigate={onNavigate} hideSearch activeScreen="home" />
@@ -60,11 +105,11 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
             </div>
 
             <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="min-w-[200px] md:min-w-[240px] bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer snap-start border border-transparent hover:border-[#008080]/30 group" onClick={() => onNavigate('product-detail')}>
+              {(loading ? [] : aiSuggestions).map((book) => (
+                <div key={book._id} className="min-w-[200px] md:min-w-[240px] bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer snap-start border border-transparent hover:border-[#008080]/30 group" onClick={() => onNavigate('product-detail', book._id)}>
                   <div className="aspect-[2/3] rounded-lg overflow-hidden mb-4 bg-gray-100 relative">
                     <img 
-                      src={`https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600`} 
+                      src={getBookImage(book)} 
                       alt="Book Cover" 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
@@ -72,12 +117,12 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
                       <Sparkles className="h-3 w-3 text-[#FFC107]" /> 98% Match
                     </div>
                   </div>
-                  <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 group-hover:text-[#008080]">Nhà Giả Kim</h3>
-                  <p className="text-sm text-gray-500 mb-2">Paulo Coelho</p>
+                  <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 group-hover:text-[#008080]">{book.title}</h3>
+                  <p className="text-sm text-gray-500 mb-2">{book.author ?? '—'}</p>
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-[#008080]">79.000đ</span>
+                    <span className="font-bold text-[#008080]">{book.price?.toLocaleString('vi-VN')}đ</span>
                     <div className="flex items-center text-xs text-yellow-500">
-                      <Star className="h-3 w-3 fill-current" /> 4.9
+                      <Star className="h-3 w-3 fill-current" /> {getBookRating(book) || '—'}
                     </div>
                   </div>
                 </div>
@@ -91,16 +136,16 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
           <div className="container mx-auto px-4">
             <h2 className="text-2xl font-bold text-gray-900 mb-8">Sách bán chạy nhất tuần</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-              {['Đắc Nhân Tâm', 'Tuổi Trẻ Đáng Giá Bao Nhiêu', 'Cây Cam Ngọt Của Tôi', 'Muôn Kiếp Nhân Sinh', 'Hành Trình Về Phương Đông', 'Tội Ác Và Hình Phạt', 'Sapiens', 'Chiến Binh Cầu Vồng', 'Hoàng Tử Bé', 'Mắt Biếc'].map((title, i) => (
-                <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 hover:border-[#008080]/30 hover:shadow-lg transition-all cursor-pointer group" onClick={() => onNavigate('product-detail')}>
+              {(loading ? [] : bestSellers).map((book) => (
+                <div key={book._id} className="bg-white rounded-xl p-4 border border-gray-100 hover:border-[#008080]/30 hover:shadow-lg transition-all cursor-pointer group" onClick={() => onNavigate('product-detail', book._id)}>
                    <div className="aspect-[2/3] rounded-lg overflow-hidden mb-4 bg-gray-100">
                     <img 
-                      src={`https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400&h=600&random=${i}`} 
+                      src={getBookImage(book)} 
                       alt="Book Cover" 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                   </div>
-                  <h3 className="font-bold text-gray-900 line-clamp-1 mb-1 group-hover:text-[#008080]">{title}</h3>
+                  <h3 className="font-bold text-gray-900 line-clamp-1 mb-1 group-hover:text-[#008080]">{book.title}</h3>
                   <div className="flex items-center gap-1 mb-2">
                     <div className="flex text-yellow-400">
                       {[1,2,3,4,5].map(s => <Star key={s} className="h-3 w-3 fill-current" />)}
@@ -108,7 +153,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
                     <span className="text-xs text-gray-400">(128)</span>
                   </div>
                   <div className="flex items-center justify-between mt-auto">
-                    <span className="font-bold text-lg text-[#008080]">105.000đ</span>
+                    <span className="font-bold text-lg text-[#008080]">{book.price?.toLocaleString('vi-VN')}đ</span>
                     <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-full border-[#008080] text-[#008080] hover:bg-[#008080] hover:text-white">
                       +
                     </Button>

@@ -8,7 +8,7 @@ const {
   deleteProduct,
   createProductReview,
 } = require('../controllers/productController');
-const { protect, seller, admin } = require('../middleware/authMiddleware'); // Giả sử bạn có middleware này
+const { protect, seller, admin } = require('../middleware/authMiddleware');
 
 router.route('/')
   .get(getProducts)

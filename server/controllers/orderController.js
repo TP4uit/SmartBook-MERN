@@ -24,39 +24,54 @@ const addOrderItems = async (req, res) => {
     // Mã giao dịch chung cho các đơn hàng được tách
     const transactionRef = `TRANS_${uuidv4()}`; 
 
+    if (!shippingAddress || typeof shippingAddress !== 'object') {
+      return res.status(400).json({ message: 'Thiếu địa chỉ giao hàng' });
+    }
+    const { address, city, postalCode, country } = shippingAddress;
+    if (!address) {
+      return res.status(400).json({ message: 'Vui lòng nhập địa chỉ giao hàng' });
+    }
+    const normalizedShipping = {
+      address: String(address),
+      city: city != null ? String(city) : '',
+      postalCode: postalCode != null ? String(postalCode) : '',
+      country: country != null ? String(country) : 'Việt Nam',
+    };
+
     // Gom nhóm item theo shop
     const itemsByShop = orderItems.reduce((acc, item) => {
       const shopId = item.shop;
-      if (!acc[shopId]) {
-        acc[shopId] = [];
-      }
-      acc[shopId].push(item);
+      if (!shopId) return acc;
+      if (!acc[shopId]) acc[shopId] = [];
+      const productId = item.product || item.book;
+      if (!productId || !item.name || item.qty == null || item.price == null) return acc;
+      acc[shopId].push({
+        name: String(item.name),
+        qty: Number(item.qty),
+        image: item.image && String(item.image).trim() ? String(item.image) : 'https://via.placeholder.com/150',
+        price: Number(item.price),
+        product: productId,
+      });
       return acc;
     }, {});
 
     const createdOrders = [];
 
-    // Tạo đơn cho từng shop
     for (const shopId of Object.keys(itemsByShop)) {
       const shopItems = itemsByShop[shopId];
+      if (!shopItems.length) continue;
 
       const itemsPrice = shopItems.reduce((acc, item) => acc + item.price * item.qty, 0);
-      const shippingPrice = 30000; 
+      const shippingPrice = 30000;
       const totalPrice = itemsPrice + shippingPrice;
 
       const order = new Order({
         user: req.user._id,
         shop_id: shopId,
         transaction_ref: transactionRef,
-        orderItems: shopItems.map(item => ({
-          name: item.name,
-          qty: item.qty,
-          image: item.image,
-          price: item.price,
-          product: item.product,
-        })),
-        shippingAddress,
-        paymentMethod,
+        orderItems: shopItems,
+        shippingAddress: normalizedShipping,
+        paymentMethod: paymentMethod || 'COD',
         itemsPrice,
         shippingPrice,
         totalPrice,
@@ -65,13 +80,12 @@ const addOrderItems = async (req, res) => {
       const savedOrder = await order.save({ session });
       createdOrders.push(savedOrder);
 
-      // Trừ tồn kho
       for (const item of shopItems) {
         const book = await Book.findById(item.product).session(session);
         if (!book) throw new Error(`Sách không tồn tại: ${item.name}`);
-        if (book.stock_quantity < item.qty) throw new Error(`Sách ${item.name} hết hàng`);
-        
-        book.stock_quantity -= item.qty;
+        const stock = Number(book.stock_quantity) || 0;
+        if (stock < item.qty) throw new Error(`Sách ${item.name} hết hàng`);
+        book.stock_quantity = stock - item.qty;
         await book.save({ session });
       }
     }
@@ -117,7 +131,9 @@ const getOrderById = async (req, res) => {
 // @access  Private
 const getMyOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
+    const orders = await Order.find({ user: req.user._id })
+      .populate('shop_id', 'name')
+      .sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: error.message });

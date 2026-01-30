@@ -19,15 +19,15 @@ const protect = async (req, res, next) => {
       // Lấy thông tin user từ DB (trừ password)
       req.user = await User.findById(decoded.id).select('-password');
 
-      next();
+      return next();
     } catch (error) {
       console.error(error);
-      res.status(401).json({ message: 'Token không hợp lệ, vui lòng đăng nhập lại' });
+      return res.status(401).json({ message: 'Token không hợp lệ, vui lòng đăng nhập lại' });
     }
   }
 
   if (!token) {
-    res.status(401).json({ message: 'Không tìm thấy Token, ủy quyền thất bại' });
+    return res.status(401).json({ message: 'Không tìm thấy Token, ủy quyền thất bại' });
   }
 };
 

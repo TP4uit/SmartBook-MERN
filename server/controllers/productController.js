@@ -46,8 +46,7 @@ const getProducts = async (req, res) => {
 const getProductById = async (req, res) => {
   try {
     const book = await Book.findById(req.params.id)
-      .populate('shop_id', 'name shop_info')
-      .populate('reviews.user', 'name avatar'); // Populate thêm info người review
+      .populate('shop_id', 'name shop_info');
 
     if (book) {
       res.json(book);

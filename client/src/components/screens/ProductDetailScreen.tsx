@@ -1,16 +1,110 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navbar } from '../layout/Navbar';
 import { Footer } from '../layout/Footer';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { Star, MessageCircle, ShoppingCart, ShieldCheck, Truck, Sparkles } from 'lucide-react';
+import api from '../../services/api';
+import { useCart } from '../../hooks/useCart';
+
+const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800';
 
 interface ProductDetailScreenProps {
-  onNavigate: (screen: string) => void;
+  onNavigate: (screen: string, productId?: string) => void;
+  productId?: string | null;
 }
 
-export function ProductDetailScreen({ onNavigate }: ProductDetailScreenProps) {
+interface BookDetail {
+  _id: string;
+  title: string;
+  author?: string;
+  description?: string;
+  price: number;
+  original_price?: number;
+  image?: string;
+  images?: string[];
+  category?: string;
+  rating?: number;
+  rating_average?: number;
+  numReviews?: number;
+  rating_count?: number;
+  sold_quantity?: number;
+  shop_id?: { name?: string; shop_info?: unknown };
+}
+
+function getBookImage(book: BookDetail): string {
+  return book.image ?? book.images?.[0] ?? PLACEHOLDER_IMAGE;
+}
+
+function getRating(book: BookDetail): number {
+  return book.rating ?? book.rating_average ?? 0;
+}
+
+export function ProductDetailScreen({ onNavigate, productId }: ProductDetailScreenProps) {
+  const { addToCart } = useCart();
+  const [book, setBook] = useState<BookDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!productId) {
+      setBook(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    api.get<BookDetail>(`/products/${productId}`)
+      .then(({ data }) => setBook(data))
+      .catch((err) => {
+        setError(err.response?.data?.message ?? 'Không tải được sách');
+        setBook(null);
+      })
+      .finally(() => setLoading(false));
+  }, [productId]);
+
+  const mainImage = book ? getBookImage(book) : PLACEHOLDER_IMAGE;
+  const thumbnails = book?.images?.length ? book.images : [mainImage];
+  const rating = book ? getRating(book) : 0;
+  const soldText = book?.sold_quantity != null ? (book.sold_quantity >= 1000 ? `${(book.sold_quantity / 1000).toFixed(1)}k` : String(book.sold_quantity)) : '—';
+
+  if (!productId) {
+    return (
+      <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
+        <Navbar onNavigate={onNavigate} activeScreen="product-detail" />
+        <main className="container mx-auto px-4 py-8 flex-1 flex items-center justify-center">
+          <p className="text-gray-500">Chọn một cuốn sách để xem chi tiết.</p>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
+        <Navbar onNavigate={onNavigate} activeScreen="product-detail" />
+        <main className="container mx-auto px-4 py-8 flex-1 flex items-center justify-center">
+          <p className="text-gray-500">Đang tải...</p>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error || !book) {
+    return (
+      <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
+        <Navbar onNavigate={onNavigate} activeScreen="product-detail" />
+        <main className="container mx-auto px-4 py-8 flex-1 flex items-center justify-center">
+          <p className="text-gray-500">{error ?? 'Không tìm thấy sách'}</p>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
       <Navbar onNavigate={onNavigate} activeScreen="product-detail" />
@@ -18,7 +112,7 @@ export function ProductDetailScreen({ onNavigate }: ProductDetailScreenProps) {
       <main className="container mx-auto px-4 py-8 flex-1">
         {/* Breadcrumb */}
         <div className="text-sm text-gray-500 mb-6">
-          Trang chủ / Cửa hàng / Văn học / <span className="text-[#008080] font-medium">Nhà Giả Kim</span>
+          Trang chủ / Cửa hàng / {book.category ?? 'Văn học'} / <span className="text-[#008080] font-medium">{book.title}</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 mb-16">
@@ -27,15 +121,15 @@ export function ProductDetailScreen({ onNavigate }: ProductDetailScreenProps) {
             <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
               <div className="aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-4">
                  <img 
-                  src="https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800" 
+                  src={mainImage} 
                   alt="Book Cover" 
                   className="w-full h-full object-cover"
                 />
               </div>
               <div className="grid grid-cols-4 gap-2">
-                {[1, 2, 3, 4].map((i) => (
+                {thumbnails.slice(0, 4).map((src, i) => (
                   <div key={i} className="aspect-square rounded-lg bg-gray-100 cursor-pointer hover:ring-2 ring-[#008080] overflow-hidden">
-                    <img src={`https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=200&random=${i}`} className="w-full h-full object-cover"/>
+                    <img src={src} alt="" className="w-full h-full object-cover"/>
                   </div>
                 ))}
               </div>
@@ -45,10 +139,10 @@ export function ProductDetailScreen({ onNavigate }: ProductDetailScreenProps) {
           {/* Right: Info */}
           <div className="md:col-span-7 lg:col-span-5 space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Nhà Giả Kim</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">{book.title}</h1>
               <div className="flex items-center gap-4 text-sm">
                 <div className="flex items-center gap-1 text-yellow-400">
-                  <span className="font-bold text-black mr-1">4.9</span>
+                  <span className="font-bold text-black mr-1">{rating || '—'}</span>
                   <Star className="h-4 w-4 fill-current" />
                   <Star className="h-4 w-4 fill-current" />
                   <Star className="h-4 w-4 fill-current" />
@@ -56,21 +150,23 @@ export function ProductDetailScreen({ onNavigate }: ProductDetailScreenProps) {
                   <Star className="h-4 w-4 fill-current" />
                 </div>
                 <span className="text-gray-400">|</span>
-                <span className="text-gray-500">Đã bán 5.2k</span>
+                <span className="text-gray-500">Đã bán {soldText}</span>
                 <span className="text-gray-400">|</span>
-                <span className="text-[#008080]">Tác giả: Paulo Coelho</span>
+                <span className="text-[#008080]">Tác giả: {book.author ?? '—'}</span>
               </div>
             </div>
 
             <div className="bg-[#F5F5DC] p-4 rounded-xl">
-              <div className="text-3xl font-bold text-[#008080]">79.000đ</div>
-              <div className="text-sm text-gray-500 line-through">105.000đ</div>
+              <div className="text-3xl font-bold text-[#008080]">{book.price?.toLocaleString('vi-VN')}đ</div>
+              {book.original_price != null && book.original_price > 0 && (
+                <div className="text-sm text-gray-500 line-through">{book.original_price.toLocaleString('vi-VN')}đ</div>
+              )}
             </div>
 
             <div className="space-y-4">
               <h3 className="font-bold text-gray-900">Mô tả sách</h3>
               <p className="text-gray-600 leading-relaxed text-sm">
-                "Nhà Giả Kim" là cuốn sách gối đầu giường của bao thế hệ độc giả. Câu chuyện về chàng chăn cừu Santiago trên hành trình tìm kiếm kho báu ở Kim Tự Tháp Ai Cập không chỉ là một cuộc phiêu lưu, mà còn là hành trình đi tìm ý nghĩa cuộc sống, lắng nghe tiếng gọi của trái tim và theo đuổi ước mơ...
+                {book.description ?? 'Chưa có mô tả.'}
               </p>
             </div>
 
@@ -85,11 +181,11 @@ export function ProductDetailScreen({ onNavigate }: ProductDetailScreenProps) {
               />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-gray-900">Fahasa Official</h4>
+                  <h4 className="font-bold text-gray-900">{typeof book.shop_id === 'object' && book.shop_id?.name ? book.shop_id.name : 'Shop'}</h4>
                   <Badge variant="secondary" className="bg-[#008080]/10 text-[#008080] text-[10px]">Mall</Badge>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                  <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-400 fill-current" /> 4.9</span>
+                  <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-400 fill-current" /> {rating || '—'}</span>
                   <span>•</span>
                   <span>15k Người theo dõi</span>
                 </div>
@@ -103,13 +199,13 @@ export function ProductDetailScreen({ onNavigate }: ProductDetailScreenProps) {
               <Button 
                 variant="outline" 
                 className="flex-1 h-12 border-[#008080] text-[#008080] hover:bg-[#008080]/5 text-lg"
-                onClick={() => onNavigate('cart')}
+                onClick={() => { addToCart(book); onNavigate('cart'); }}
               >
                 <ShoppingCart className="mr-2 h-5 w-5" /> Thêm vào giỏ
               </Button>
               <Button 
                 className="flex-1 h-12 bg-[#008080] hover:bg-[#006666] text-white text-lg shadow-lg shadow-[#008080]/20"
-                onClick={() => onNavigate('cart')}
+                onClick={() => { addToCart(book); onNavigate('checkout'); }}
               >
                 Mua ngay
               </Button>
@@ -131,7 +227,7 @@ export function ProductDetailScreen({ onNavigate }: ProductDetailScreenProps) {
                 <div className="space-y-4">
                   {[1, 2, 3].map(i => (
                     <div key={i} className="flex gap-3 group cursor-pointer" onClick={() => onNavigate('product-detail')}>
-                      <img src={`https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=100&random=${i+20}`} className="w-16 h-24 object-cover rounded-md bg-gray-200" />
+                      <img src={`https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=100&random=${i+20}`} className="w-16 h-24 object-cover rounded-md bg-gray-200" alt="" />
                       <div>
                         <h4 className="font-medium text-gray-900 text-sm line-clamp-2 group-hover:text-[#008080]">Đời Thay Đổi Khi Chúng Ta Thay Đổi</h4>
                         <div className="text-xs text-gray-500 mt-1">Andrew Matthews</div>

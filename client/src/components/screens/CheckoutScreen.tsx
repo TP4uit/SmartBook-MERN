@@ -14,36 +14,46 @@ export function CheckoutScreen({ onNavigate }: CheckoutScreenProps) {
   const { cartItems, totalPrice, clearCart } = useCart();
   const [address, setAddress] = useState('123 Đường Nguyễn Huệ, Quận 1, TP. HCM');
   const [phone, setPhone] = useState('0901234567');
+  const [city, setCity] = useState('TP. Hồ Chí Minh');
+  const [postalCode, setPostalCode] = useState('700000');
+  const [country, setCountry] = useState('Việt Nam');
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Xử lý Đặt hàng
   const handlePlaceOrder = async () => {
+    if (cartItems.length === 0) {
+      setErrorMessage('Giỏ hàng trống.');
+      return;
+    }
     setIsLoading(true);
+    setErrorMessage(null);
     try {
-      // Gọi API tạo đơn hàng
-      // Backend sẽ tự tách đơn dựa trên shopId của từng item
       await api.post('/orders', {
-        orderItems: cartItems.map(item => ({
-          book: item.bookId,
-          qty: item.quantity,
+        orderItems: cartItems.map((item) => ({
+          name: item.title,
+          image: item.image,
           price: item.price,
-          shop: item.shopId // Quan trọng để Backend tách đơn
+          product: item.bookId,
+          shop: item.shopId,
+          qty: item.quantity,
         })),
-        shippingAddress: address,
-        paymentMethod: 'COD', // Mặc định COD
-        itemsPrice: totalPrice,
-        shippingPrice: 30000,
-        totalPrice: totalPrice + 30000
+        shippingAddress: {
+          address,
+          city,
+          postalCode,
+          country,
+        },
+        paymentMethod: 'COD',
       });
 
-      // Thành công
       clearCart();
       setIsSuccess(true);
-      
-    } catch (error) {
-      console.error("Lỗi đặt hàng:", error);
-      alert("Đặt hàng thất bại. Vui lòng thử lại.");
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : null;
+      setErrorMessage(msg ?? 'Đặt hàng thất bại. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -133,6 +143,9 @@ export function CheckoutScreen({ onNavigate }: CheckoutScreenProps) {
                 </div>
               </div>
 
+              {errorMessage && (
+                <p className="mt-4 text-sm text-red-600 text-center">{errorMessage}</p>
+              )}
               <Button 
                 className="w-full mt-6 bg-[#008080] hover:bg-[#006666] py-6 text-lg"
                 onClick={handlePlaceOrder}

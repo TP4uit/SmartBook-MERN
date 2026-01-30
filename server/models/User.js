@@ -12,6 +12,12 @@ const userSchema = new mongoose.Schema({
     enum: ['customer', 'seller', 'admin'], 
     default: 'customer' 
   },
+  status: {
+    type: String,
+    enum: ['active', 'banned'],
+    default: 'active'
+  },
+  avatar: { type: String },
   // Thông tin mở rộng cho Seller
   shop_info: {
     shop_name: String,

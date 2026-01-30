@@ -1,18 +1,71 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navbar } from '../layout/Navbar';
 import { Footer } from '../layout/Footer';
 import { Button } from '../ui/button';
 import { Slider } from '../ui/slider';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
+import { Input } from '../ui/input';
 import { Star, Filter, ShoppingBag } from 'lucide-react';
+import api from '../../services/api';
+
+const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600';
+
+const CATEGORIES = ['Văn học', 'Kinh tế', 'Tâm lý & Kỹ năng', 'Thiếu nhi', 'Sách giáo khoa', 'Truyện tranh'];
+
+interface Book {
+  _id: string;
+  title: string;
+  author?: string;
+  price: number;
+  image?: string;
+  images?: string[];
+  rating?: number;
+  rating_average?: number;
+  numReviews?: number;
+  rating_count?: number;
+  shop_id?: { name?: string };
+}
 
 interface MarketplaceScreenProps {
-  onNavigate: (screen: string) => void;
+  onNavigate: (screen: string, productId?: string) => void;
+}
+
+function getBookImage(book: Book): string {
+  return book.image ?? book.images?.[0] ?? PLACEHOLDER_IMAGE;
 }
 
 export function MarketplaceScreen({ onNavigate }: MarketplaceScreenProps) {
   const [priceRange, setPriceRange] = useState([0, 500000]);
+  const [keyword, setKeyword] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string | number> = { pageNumber: 1, minPrice: priceRange[0], maxPrice: priceRange[1] };
+      if (keyword.trim()) params.keyword = keyword.trim();
+      if (selectedCategory) params.category = selectedCategory;
+      const { data } = await api.get<{ books: Book[]; total: number }>('/products', { params });
+      setBooks(data.books ?? []);
+      setTotal(data.total ?? 0);
+    } catch (err) {
+      console.error('Fetch products error:', err);
+      setBooks([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const handleApplyFilters = () => fetchProducts();
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
@@ -28,13 +81,19 @@ export function MarketplaceScreen({ onNavigate }: MarketplaceScreenProps) {
               <h2>Bộ lọc</h2>
             </div>
 
+            {/* Keyword */}
+            <div className="space-y-2">
+              <h3 className="font-medium text-gray-900">Từ khóa</h3>
+              <Input placeholder="Tìm theo tên sách..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="border-gray-200" />
+            </div>
+
             {/* Categories */}
             <div className="space-y-3">
               <h3 className="font-medium text-gray-900">Danh mục</h3>
               <div className="space-y-2">
-                {['Văn học', 'Kinh tế', 'Tâm lý & Kỹ năng', 'Thiếu nhi', 'Sách giáo khoa', 'Truyện tranh'].map((cat) => (
+                {CATEGORIES.map((cat) => (
                   <div key={cat} className="flex items-center gap-2">
-                    <Checkbox id={cat} />
+                    <Checkbox id={cat} checked={selectedCategory === cat} onCheckedChange={(checked) => setSelectedCategory(checked ? cat : null)} />
                     <Label htmlFor={cat} className="text-sm text-gray-600 font-normal cursor-pointer">{cat}</Label>
                   </div>
                 ))}
@@ -88,22 +147,22 @@ export function MarketplaceScreen({ onNavigate }: MarketplaceScreenProps) {
               </div>
             </div>
 
-            <Button className="w-full bg-[#008080] hover:bg-[#006666]">Áp dụng</Button>
+            <Button className="w-full bg-[#008080] hover:bg-[#006666]" onClick={handleApplyFilters}>Áp dụng</Button>
           </aside>
 
           {/* Right Grid (Books) */}
           <div className="flex-1">
             <div className="mb-6 flex items-center justify-between">
               <h1 className="text-2xl font-bold text-gray-800">Tất cả sách</h1>
-              <div className="text-sm text-gray-500">Hiển thị 24/1256 kết quả</div>
+              <div className="text-sm text-gray-500">Hiển thị {books.length}/{total} kết quả</div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {Array(12).fill(0).map((_, i) => (
-                <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-lg transition-all cursor-pointer group flex flex-col" onClick={() => onNavigate('product-detail')}>
+              {(loading ? [] : books).map((book, i) => (
+                <div key={book._id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-lg transition-all cursor-pointer group flex flex-col" onClick={() => onNavigate('product-detail', book._id)}>
                    <div className="aspect-[2/3] rounded-lg overflow-hidden mb-4 bg-gray-100 relative">
                     <img 
-                      src={`https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600&random=${i+10}`} 
+                      src={getBookImage(book)} 
                       alt="Book Cover" 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
@@ -116,10 +175,10 @@ export function MarketplaceScreen({ onNavigate }: MarketplaceScreenProps) {
                   <div className="mb-2">
                     <div className="flex items-center gap-1 mb-1">
                       <ShoppingBag className="h-3 w-3 text-[#008080]" />
-                      <span className="text-xs text-gray-500 truncate">Shop: Tiki Trading</span>
+                      <span className="text-xs text-gray-500 truncate">Shop: {typeof book.shop_id === 'object' && book.shop_id?.name ? book.shop_id.name : '—'}</span>
                     </div>
                     <h3 className="font-bold text-gray-900 line-clamp-2 text-sm group-hover:text-[#008080] transition-colors">
-                      {['Đắc Nhân Tâm', 'Nhà Giả Kim', 'Cây Cam Ngọt Của Tôi', 'Muôn Kiếp Nhân Sinh'][i % 4]}
+                      {book.title}
                     </h3>
                   </div>
                   
@@ -128,10 +187,10 @@ export function MarketplaceScreen({ onNavigate }: MarketplaceScreenProps) {
                       <div className="flex text-yellow-400">
                         {Array(5).fill(0).map((_, idx) => <Star key={idx} className="h-3 w-3 fill-current" />)}
                       </div>
-                      <span className="text-xs text-gray-400">(45)</span>
+                      <span className="text-xs text-gray-400">({book.numReviews ?? book.rating_count ?? 0})</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-[#008080]">86.000đ</span>
+                      <span className="font-bold text-[#008080]">{book.price?.toLocaleString('vi-VN')}đ</span>
                     </div>
                   </div>
                 </div>

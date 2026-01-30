@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navbar } from '../layout/Navbar';
 import { Footer } from '../layout/Footer';
 import { ProfileSidebar } from '../layout/ProfileSidebar';
@@ -21,11 +21,70 @@ interface Address {
   isDefault: boolean;
 }
 
-export function AddressBookScreen({ onNavigate }: AddressBookScreenProps) {
-  const [addresses, setAddresses] = useState<Address[]>([
+const STORAGE_KEY = 'smartbook_addresses';
+
+function loadAddresses(): Address[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return [
     { id: 1, name: 'Nguyễn Văn A', phone: '0901234567', address: '123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh', isDefault: true },
-    { id: 2, name: 'Văn Phòng Cty', phone: '0901234567', address: 'Tòa nhà Landmark 81, Quận Bình Thạnh, TP. Hồ Chí Minh', isDefault: false },
-  ]);
+  ];
+}
+
+function saveAddresses(addresses: Address[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(addresses));
+}
+
+export function AddressBookScreen({ onNavigate }: AddressBookScreenProps) {
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+  const [newIsDefault, setNewIsDefault] = useState(false);
+
+  useEffect(() => {
+    setAddresses(loadAddresses());
+  }, []);
+
+  const handleAddAddress = () => {
+    if (!newName.trim() || !newPhone.trim() || !newAddress.trim()) {
+      alert('Vui lòng nhập đầy đủ thông tin');
+      return;
+    }
+    const newId = Date.now();
+    let updated = [...addresses];
+    if (newIsDefault) {
+      updated = updated.map((a) => ({ ...a, isDefault: false }));
+    }
+    updated.push({ id: newId, name: newName.trim(), phone: newPhone.trim(), address: newAddress.trim(), isDefault: newIsDefault || updated.length === 0 });
+    setAddresses(updated);
+    saveAddresses(updated);
+    setNewName('');
+    setNewPhone('');
+    setNewAddress('');
+    setNewIsDefault(false);
+    setDialogOpen(false);
+  };
+
+  const handleSetDefault = (id: number) => {
+    const updated = addresses.map((a) => ({ ...a, isDefault: a.id === id }));
+    setAddresses(updated);
+    saveAddresses(updated);
+  };
+
+  const handleDelete = (id: number) => {
+    const addr = addresses.find((a) => a.id === id);
+    if (addr?.isDefault) {
+      alert('Không thể xóa địa chỉ mặc định');
+      return;
+    }
+    const updated = addresses.filter((a) => a.id !== id);
+    setAddresses(updated);
+    saveAddresses(updated);
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
@@ -44,7 +103,7 @@ export function AddressBookScreen({ onNavigate }: AddressBookScreenProps) {
                  <p className="text-sm text-gray-500">Quản lý địa chỉ giao hàng</p>
               </div>
               
-              <Dialog>
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="bg-[#008080] hover:bg-[#006666]">
                     <Plus className="mr-2 h-4 w-4" /> Thêm địa chỉ mới
@@ -58,26 +117,22 @@ export function AddressBookScreen({ onNavigate }: AddressBookScreenProps) {
                     <div className="grid grid-cols-2 gap-4">
                        <div className="space-y-2">
                           <Label>Họ và tên</Label>
-                          <Input placeholder="Nhập họ tên" className="bg-gray-50" />
+                          <Input placeholder="Nhập họ tên" className="bg-gray-50" value={newName} onChange={(e) => setNewName(e.target.value)} />
                        </div>
                        <div className="space-y-2">
                           <Label>Số điện thoại</Label>
-                          <Input placeholder="Nhập số điện thoại" className="bg-gray-50" />
+                          <Input placeholder="Nhập số điện thoại" className="bg-gray-50" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
                        </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Địa chỉ (Tỉnh/Thành phố, Quận/Huyện, Phường/Xã)</Label>
-                      <Input placeholder="Ví dụ: TP.HCM, Quận 1, Phường Bến Nghé" className="bg-gray-50" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Địa chỉ cụ thể (Số nhà, Tên đường)</Label>
-                      <Input placeholder="Ví dụ: 123 Đường Lê Lợi" className="bg-gray-50" />
+                      <Label>Địa chỉ đầy đủ</Label>
+                      <Input placeholder="Ví dụ: 123 Đường Lê Lợi, Q.1, TP.HCM" className="bg-gray-50" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} />
                     </div>
                     <div className="flex items-center gap-2 mt-2">
-                      <input type="checkbox" id="default-addr" className="rounded text-[#008080] focus:ring-[#008080]" />
+                      <input type="checkbox" id="default-addr" title="Đặt làm địa chỉ mặc định" className="rounded text-[#008080] focus:ring-[#008080]" checked={newIsDefault} onChange={(e) => setNewIsDefault(e.target.checked)} />
                       <Label htmlFor="default-addr" className="font-normal cursor-pointer">Đặt làm địa chỉ mặc định</Label>
                     </div>
-                    <Button className="w-full bg-[#008080] hover:bg-[#006666] mt-2">Lưu địa chỉ</Button>
+                    <Button className="w-full bg-[#008080] hover:bg-[#006666] mt-2" onClick={handleAddAddress}>Lưu địa chỉ</Button>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -104,7 +159,7 @@ export function AddressBookScreen({ onNavigate }: AddressBookScreenProps) {
 
                   <div className="flex items-center gap-2 self-end md:self-center">
                     {!addr.isDefault && (
-                       <Button variant="ghost" size="sm" className="text-gray-500 hover:text-[#008080]">
+                       <Button variant="ghost" size="sm" className="text-gray-500 hover:text-[#008080]" onClick={() => handleSetDefault(addr.id)}>
                          Thiết lập mặc định
                        </Button>
                     )}
@@ -112,7 +167,7 @@ export function AddressBookScreen({ onNavigate }: AddressBookScreenProps) {
                       <Edit2 className="h-4 w-4" />
                     </Button>
                     {!addr.isDefault && (
-                      <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50">
+                      <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => handleDelete(addr.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}

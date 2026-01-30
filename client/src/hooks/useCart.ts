@@ -28,28 +28,40 @@ export function useCart() {
     window.dispatchEvent(new Event('storage')); 
   }, [cartItems]);
 
-  const addToCart = (product: any) => {
+  const addToCart = (product: {
+    _id: string;
+    title: string;
+    price: number;
+    image?: string;
+    images?: string[];
+    shop_id?: { _id?: string; name?: string };
+  }) => {
+    const shopId = typeof product.shop_id === 'object' && product.shop_id?._id
+      ? String(product.shop_id._id)
+      : 'unknown';
+    const shopName = typeof product.shop_id === 'object' && product.shop_id?.name
+      ? product.shop_id.name
+      : 'Cửa hàng sách';
+    const image = product.image ?? product.images?.[0] ?? 'https://via.placeholder.com/150';
+
     setCartItems((prev) => {
       const existing = prev.find((item) => item.bookId === product._id);
       if (existing) {
-        // Nếu sách đã có -> Tăng số lượng
         return prev.map((item) =>
           item.bookId === product._id
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
-      } else {
-        // Nếu chưa có -> Thêm mới
-        return [...prev, {
-          bookId: product._id,
-          title: product.title,
-          price: product.price,
-          image: product.image || 'https://via.placeholder.com/150',
-          quantity: 1,
-          shopId: product.shop_id?._id || 'unknown', // Cần populate shop từ BE
-          shopName: product.shop_id?.shop_name || 'Cửa hàng sách'
-        }];
       }
+      return [...prev, {
+        bookId: product._id,
+        title: product.title,
+        price: product.price,
+        image,
+        quantity: 1,
+        shopId,
+        shopName,
+      }];
     });
   };
 

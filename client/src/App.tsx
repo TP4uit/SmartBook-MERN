@@ -48,12 +48,16 @@ type Screen =
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
-  // --- QUAN TRỌNG: Khai báo hàm handleNavigate ở đây ---
-  const handleNavigate = (screen: string) => {
+  const handleNavigate = (screen: string, productId?: string) => {
+    if (screen === 'product-detail' && productId) {
+      setSelectedProductId(productId);
+    } else {
+      setSelectedProductId(null);
+    }
     setCurrentScreen(screen as Screen);
   };
-  // -----------------------------------------------------
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -63,7 +67,7 @@ export default function App() {
       // Sử dụng handleNavigate cho các screen còn lại để tránh lỗi Type Mismatch
       case 'home': return <HomeScreen onNavigate={handleNavigate} />;
       case 'marketplace': return <MarketplaceScreen onNavigate={handleNavigate} />;
-      case 'product-detail': return <ProductDetailScreen onNavigate={handleNavigate} />;
+      case 'product-detail': return <ProductDetailScreen onNavigate={handleNavigate} productId={selectedProductId} />;
       case 'cart': return <CartScreen onNavigate={handleNavigate} />;
       case 'checkout': return <CheckoutScreen onNavigate={handleNavigate} />;
       case 'profile': return <ProfileScreen onNavigate={handleNavigate} />;
