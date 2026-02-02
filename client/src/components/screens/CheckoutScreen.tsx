@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { MapPin, CreditCard, Loader2, CheckCircle2 } from 'lucide-react';
+import { MapPin, CreditCard, Loader2, CheckCircle2, ArrowLeft } from 'lucide-react'; // Import thêm ArrowLeft
 import { useCart } from '../../hooks/useCart';
 import api from '../../services/api';
 
@@ -11,6 +12,7 @@ interface CheckoutScreenProps {
 }
 
 export function CheckoutScreen({ onNavigate }: CheckoutScreenProps) {
+  const navigate = useNavigate(); // Hook dùng để quay lại trang trước
   const { cartItems, totalPrice, clearCart } = useCart();
   const [address, setAddress] = useState('KTX Khu B, ĐHQG');
   const [phone, setPhone] = useState('090xxxxxxx');
@@ -29,14 +31,13 @@ export function CheckoutScreen({ onNavigate }: CheckoutScreenProps) {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      // Gửi đúng cấu trúc Controller yêu cầu
       await api.post('/orders', {
         orderItems: cartItems.map((item) => ({
           name: item.title,
           image: item.image,
           price: item.price,
-          product: item.bookId, // Controller đọc field 'product'
-          shop: item.shopId,    // Quan trọng để tách đơn
+          product: item.bookId,
+          shop: item.shopId,
           qty: item.quantity,
         })),
         shippingAddress: {
@@ -79,6 +80,18 @@ export function CheckoutScreen({ onNavigate }: CheckoutScreenProps) {
   return (
     <div className="min-h-screen bg-[#F5F5DC] py-8">
       <div className="container mx-auto px-4 max-w-4xl">
+        
+        {/* THANH ĐIỀU HƯỚNG QUAY LẠI */}
+        <div className="mb-6">
+          <Button 
+            variant="ghost" 
+            className="pl-0 hover:bg-transparent hover:text-[#008080] text-gray-600"
+            onClick={() => navigate(-1)} // Quay lại trang trước (thường là Cart)
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Quay lại giỏ hàng
+          </Button>
+        </div>
+
         <h1 className="text-2xl font-bold text-[#008080] mb-6">Thanh toán</h1>
         
         <div className="grid md:grid-cols-3 gap-6">
