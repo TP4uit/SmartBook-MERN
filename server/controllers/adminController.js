@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Order = require('../models/Order');
+const Book = require('../models/Book');
 
 // @desc    Lấy danh sách tất cả users (Admin)
 // @route   GET /api/admin/users
@@ -94,21 +95,31 @@ const getAllShops = async (req, res) => {
   }
 };
 
-// @desc    Thống kê tổng quan cho Admin Dashboard
+// @desc    Thống kê tổng quan cho Admin Dashboard (dữ liệu thật từ DB)
 // @route   GET /api/admin/stats
 // @access  Private (Admin)
 const getAdminStats = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments({ role: 'customer' });
-    const totalSellers = await User.countDocuments({ role: 'seller' });
-    const activeSellers = await User.countDocuments({ role: 'seller', status: 'active' });
-    const bannedSellers = await User.countDocuments({ role: 'seller', status: 'banned' });
-    
+    const [totalUsers, totalSellers, activeSellers, bannedSellers, totalOrders, ordersForSales, totalProducts] = await Promise.all([
+      User.countDocuments({ role: 'customer' }),
+      User.countDocuments({ role: 'seller' }),
+      User.countDocuments({ role: 'seller', status: 'active' }),
+      User.countDocuments({ role: 'seller', status: 'banned' }),
+      Order.countDocuments({}),
+      Order.find({ status: 'Delivered' }).select('totalPrice'),
+      Book.countDocuments({}),
+    ]);
+
+    const totalSales = ordersForSales.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+
     res.json({
       totalUsers,
       totalSellers,
       activeSellers,
       bannedSellers,
+      totalOrders,
+      totalSales,
+      totalProducts,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

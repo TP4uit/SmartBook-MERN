@@ -1,40 +1,115 @@
 const Book = require('../models/Book');
-const { generateEmbedding } = require('../utils/ai'); 
+const mongoose = require('mongoose');
+const { generateEmbedding } = require('../utils/ai');
 
-// @desc    Lấy tất cả sách (Có lọc, tìm kiếm keyword, phân trang)
+const PAGE_SIZE = 12;
+
+// Helper: build match filter từ query (category, price, shopId)
+function buildMatchFilter(req) {
+  const match = {};
+  if (req.query.category) match.category = req.query.category;
+  if (req.query.shopId) match.shop_id = new mongoose.Types.ObjectId(req.query.shopId);
+  if (req.query.minPrice != null || req.query.maxPrice != null) {
+    match.price = {};
+    if (req.query.minPrice != null) match.price.$gte = Number(req.query.minPrice);
+    if (req.query.maxPrice != null) match.price.$lte = Number(req.query.maxPrice);
+  }
+  return match;
+}
+
+// @desc    Lấy tất cả sách (Vector Search khi có keyword, lọc category/price/shopId, phân trang)
 // @route   GET /api/products
 // @access  Public
 const getProducts = async (req, res) => {
   try {
-    const pageSize = 12;
+    const pageSize = Number(req.query.pageSize) || PAGE_SIZE;
     const page = Number(req.query.pageNumber) || 1;
+    const keyword = (req.query.keyword || '').trim();
+    const matchFilter = buildMatchFilter(req);
 
-    // Filter cơ bản
-    const keyword = req.query.keyword
-      ? { title: { $regex: req.query.keyword, $options: 'i' } }
-      : {};
+    // Có keyword -> thử Vector Search, fallback regex
+    if (keyword) {
+      let queryVector = [];
+      try {
+        queryVector = await generateEmbedding(keyword);
+      } catch (e) {
+        console.warn('Embedding keyword failed, fallback regex:', e.message);
+      }
 
-    const category = req.query.category ? { category: req.query.category } : {};
-    
-    // Filter theo Shop
-    const shop = req.query.shopId ? { shop_id: req.query.shopId } : {};
+      const hasVector = Array.isArray(queryVector) && queryVector.length > 0;
+      if (hasVector) {
+        try {
+          const pipeline = [
+            {
+              $vectorSearch: {
+                index: 'vector_index',
+                path: 'embedding_vector',
+                queryVector,
+                numCandidates: 100,
+                limit: 200,
+              },
+            },
+            { $match: Object.keys(matchFilter).length ? matchFilter : { _id: { $exists: true } } },
+            {
+              $facet: {
+                totalResult: [{ $count: 'total' }],
+                items: [
+                  { $skip: pageSize * (page - 1) },
+                  { $limit: pageSize },
+                  {
+                    $lookup: {
+                      from: 'users',
+                      localField: 'shop_id',
+                      foreignField: '_id',
+                      as: 'shop_id_doc',
+                      pipeline: [{ $project: { name: 1, email: 1, shop_info: 1, password: 0 } }],
+                    },
+                  },
+                  { $set: { shop_id: { $arrayElemAt: ['$shop_id_doc', 0] } } },
+                  { $project: { shop_id_doc: 0, embedding_vector: 0 } },
+                ],
+              },
+            },
+          ];
+          const result = await Book.aggregate(pipeline);
+          const total = result[0]?.totalResult?.[0]?.total ?? 0;
+          const books = result[0]?.items ?? [];
+          return res.json({ books, page, pages: Math.ceil(total / pageSize) || 1, total });
+        } catch (vectorErr) {
+          console.warn('Vector search failed, fallback to regex:', vectorErr.message);
+        }
+      }
 
-    // Filter theo Giá
-    let priceFilter = {};
-    if (req.query.minPrice) priceFilter.$gte = Number(req.query.minPrice);
-    if (req.query.maxPrice) priceFilter.$lte = Number(req.query.maxPrice);
-    const price = (req.query.minPrice || req.query.maxPrice) ? { price: priceFilter } : {};
+      // Fallback: tìm kiếm regex
+      const query = {
+        $or: [
+          { title: { $regex: keyword, $options: 'i' } },
+          { description: { $regex: keyword, $options: 'i' } },
+          { author: { $regex: keyword, $options: 'i' } },
+        ],
+        ...matchFilter,
+      };
+      const count = await Book.countDocuments(query);
+      const books = await Book.find(query)
+        .select('-embedding_vector')
+        .populate('shop_id', 'name email shop_info')
+        .limit(pageSize)
+        .skip(pageSize * (page - 1))
+        .sort({ createdAt: -1 });
+      return res.json({ books, page, pages: Math.ceil(count / pageSize) || 1, total: count });
+    }
 
-    const query = { ...keyword, ...category, ...price, ...shop };
-
+    // Không có keyword: list phân trang + bộ lọc
+    const query = matchFilter;
     const count = await Book.countDocuments(query);
     const books = await Book.find(query)
+      .select('-embedding_vector')
       .populate('shop_id', 'name email shop_info')
       .limit(pageSize)
       .skip(pageSize * (page - 1))
       .sort({ createdAt: -1 });
 
-    res.json({ books, page, pages: Math.ceil(count / pageSize), total: count });
+    res.json({ books, page, pages: Math.ceil(count / pageSize) || 1, total: count });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -63,7 +138,7 @@ const getProductById = async (req, res) => {
 // @access  Private (Seller)
 const createProduct = async (req, res) => {
   try {
-    const { title, price, description, image, category, stock_quantity, author } = req.body;
+    const { title, price, description, image, images, category, stock_quantity, author } = req.body;
 
     if (!title || !price || !description) {
       return res.status(400).json({ message: 'Vui lòng nhập đủ thông tin' });
@@ -77,22 +152,22 @@ const createProduct = async (req, res) => {
       }
     } catch (aiError) {
       console.error("Lỗi tạo AI Vector (Create):", aiError.message);
-      // Vẫn cho tạo sách nhưng log lỗi
     }
+
+    const imageList = Array.isArray(images) && images.length ? images : (image ? [image] : []);
 
     const book = new Book({
       shop_id: req.user._id,
       title,
       price,
       description,
-      image,
-      category,
-      stock_quantity,
-      author,
+      images: imageList,
+      category: category || 'Văn học',
+      stock_quantity: stock_quantity ?? 0,
+      author: author || '',
       embedding_vector,
-      reviews: [],
-      rating: 0,
-      numReviews: 0
+      rating_average: 0,
+      rating_count: 0,
     });
 
     const createdBook = await book.save();
@@ -107,7 +182,7 @@ const createProduct = async (req, res) => {
 // @access  Private (Seller)
 const updateProduct = async (req, res) => {
   try {
-    const { title, price, description, image, category, stock_quantity, author } = req.body;
+    const { title, price, description, image, images, category, stock_quantity, author } = req.body;
     const book = await Book.findById(req.params.id);
 
     if (book) {
@@ -124,17 +199,17 @@ const updateProduct = async (req, res) => {
            book.embedding_vector = await generateEmbedding(description);
          } catch (aiError) {
            console.error("Lỗi cập nhật AI Vector:", aiError.message);
-           // Không chặn update, giữ vector cũ hoặc null tuỳ logic
          }
       }
 
-      book.title = title || book.title;
-      book.price = price || book.price;
-      book.description = description || book.description;
-      book.image = image || book.image;
-      book.category = category || book.category;
-      book.stock_quantity = stock_quantity || book.stock_quantity;
-      book.author = author || book.author;
+      book.title = title ?? book.title;
+      book.price = price ?? book.price;
+      book.description = description ?? book.description;
+      if (Array.isArray(images) && images.length) book.images = images;
+      else if (image) book.images = [image];
+      book.category = category ?? book.category;
+      book.stock_quantity = stock_quantity ?? book.stock_quantity;
+      book.author = author ?? book.author;
 
       const updatedBook = await book.save();
       res.json(updatedBook);
@@ -193,12 +268,9 @@ const createProductReview = async (req, res) => {
       };
 
       book.reviews.push(review);
-      book.numReviews = book.reviews.length;
-      
-      // Tính lại điểm trung bình
-      book.rating =
-        book.reviews.reduce((acc, item) => item.rating + acc, 0) /
-        book.reviews.length;
+      book.rating_count = book.reviews.length;
+      book.rating_average =
+        book.reviews.reduce((acc, item) => acc + item.rating, 0) / book.reviews.length;
 
       await book.save();
       res.status(201).json({ message: 'Đã thêm đánh giá' });

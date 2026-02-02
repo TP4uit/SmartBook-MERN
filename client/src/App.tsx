@@ -133,8 +133,8 @@ export default function App() {
         {renderScreen()}
       </main>
 
-      {/* Chat Widget (Global) */}
-      <ChatWidget />
+      {/* Chat Widget (Global) - truyền productId khi đang xem chi tiết sách để AI có ngữ cảnh */}
+      <ChatWidget productId={currentScreen === 'product-detail' ? selectedProductId : undefined} />
     </div>
   );
 }

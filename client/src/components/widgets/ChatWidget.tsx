@@ -11,7 +11,11 @@ interface Message {
   sender: 'bot' | 'user';
 }
 
-export function ChatWidget() {
+interface ChatWidgetProps {
+  productId?: string | null;
+}
+
+export function ChatWidget({ productId }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   
   // State quản lý tin nhắn & input
@@ -51,13 +55,14 @@ export function ChatWidget() {
     setIsLoading(true);
 
     try {
-      // 2. Gọi API Backend (Endpoint đã có trong chatController.js)
+      // 2. Gọi API Backend (POST /api/chat)
       const response = await api.post('/chat', {
         message: userMsg.text,
         history: messages.map(m => ({
           role: m.sender === 'user' ? 'user' : 'model',
           parts: [{ text: m.text }]
-        })) // Gửi kèm lịch sử để AI nhớ ngữ cảnh
+        })),
+        ...(productId ? { productId } : {}),
       });
 
       // 3. Thêm phản hồi của AI vào UI

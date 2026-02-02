@@ -41,15 +41,26 @@ function getRating(book: BookDetail): number {
   return book.rating ?? book.rating_average ?? 0;
 }
 
+interface SimilarBook {
+  _id: string;
+  title: string;
+  author?: string;
+  price: number;
+  image?: string;
+  images?: string[];
+}
+
 export function ProductDetailScreen({ onNavigate, productId }: ProductDetailScreenProps) {
   const { addToCart } = useCart();
   const [book, setBook] = useState<BookDetail | null>(null);
+  const [similarBooks, setSimilarBooks] = useState<SimilarBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!productId) {
       setBook(null);
+      setSimilarBooks([]);
       setLoading(false);
       return;
     }
@@ -63,6 +74,20 @@ export function ProductDetailScreen({ onNavigate, productId }: ProductDetailScre
       })
       .finally(() => setLoading(false));
   }, [productId]);
+
+  // Sách tương tự: Vector Search theo title của sách hiện tại
+  useEffect(() => {
+    if (!book?.title || !productId) {
+      setSimilarBooks([]);
+      return;
+    }
+    api.get<{ books: SimilarBook[] }>('/products', { params: { keyword: book.title, pageNumber: 1, pageSize: 6 } })
+      .then(({ data }) => {
+        const list = (data.books ?? []).filter((b) => b._id !== productId).slice(0, 3);
+        setSimilarBooks(list);
+      })
+      .catch(() => setSimilarBooks([]));
+  }, [book?.title, productId]);
 
   const mainImage = book ? getBookImage(book) : PLACEHOLDER_IMAGE;
   const thumbnails = book?.images?.length ? book.images : [mainImage];
@@ -217,7 +242,7 @@ export function ProductDetailScreen({ onNavigate, productId }: ProductDetailScre
             </div>
           </div>
 
-          {/* Right Column: AI Suggestion */}
+          {/* Right Column: AI Suggestion (Vector Search theo title) */}
           <div className="md:col-span-12 lg:col-span-3">
              <div className="bg-gradient-to-b from-[#008080]/5 to-transparent rounded-2xl p-6 border border-[#008080]/10">
                 <div className="flex items-center gap-2 mb-4 text-[#008080] font-bold">
@@ -225,16 +250,18 @@ export function ProductDetailScreen({ onNavigate, productId }: ProductDetailScre
                   <h3>Sách tương tự (AI)</h3>
                 </div>
                 <div className="space-y-4">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="flex gap-3 group cursor-pointer" onClick={() => onNavigate('product-detail')}>
-                      <img src={`https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=100&random=${i+20}`} className="w-16 h-24 object-cover rounded-md bg-gray-200" alt="" />
+                  {similarBooks.length ? similarBooks.map((sb) => (
+                    <div key={sb._id} className="flex gap-3 group cursor-pointer" onClick={() => onNavigate('product-detail', sb._id)}>
+                      <img src={sb.image ?? sb.images?.[0] ?? PLACEHOLDER_IMAGE} className="w-16 h-24 object-cover rounded-md bg-gray-200" alt="" />
                       <div>
-                        <h4 className="font-medium text-gray-900 text-sm line-clamp-2 group-hover:text-[#008080]">Đời Thay Đổi Khi Chúng Ta Thay Đổi</h4>
-                        <div className="text-xs text-gray-500 mt-1">Andrew Matthews</div>
-                        <div className="text-[#008080] font-bold text-sm mt-1">65.000đ</div>
+                        <h4 className="font-medium text-gray-900 text-sm line-clamp-2 group-hover:text-[#008080]">{sb.title}</h4>
+                        <div className="text-xs text-gray-500 mt-1">{sb.author ?? '—'}</div>
+                        <div className="text-[#008080] font-bold text-sm mt-1">{sb.price?.toLocaleString('vi-VN')}đ</div>
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-sm text-gray-500">Chưa có gợi ý tương tự.</p>
+                  )}
                 </div>
              </div>
           </div>

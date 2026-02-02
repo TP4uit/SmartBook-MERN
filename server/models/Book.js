@@ -17,6 +17,9 @@ const bookSchema = new mongoose.Schema({
   // Đánh giá (Khớp với UI "4.9 sao")
   rating_average: { type: Number, default: 0 },
   rating_count: { type: Number, default: 0 },
+  reviews: [
+    { name: String, rating: Number, comment: String, user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } }
+  ],
 
   // Badge hiển thị trên UI
   is_best_seller: { type: Boolean, default: false }, // Badge "Bán chạy"
