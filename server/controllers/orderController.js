@@ -20,48 +20,52 @@ const addOrderItems = async (req, res) => {
     if (!shippingAddress || typeof shippingAddress !== 'object') {
       return res.status(400).json({ message: 'Thiếu địa chỉ giao hàng' });
     }
-    const { address, city, postalCode, country } = shippingAddress;
-    if (!address) {
-      return res.status(400).json({ message: 'Vui lòng nhập địa chỉ giao hàng' });
-    }
     const normalizedShipping = {
-      address: String(address),
-      city: city != null ? String(city) : '',
-      postalCode: postalCode != null ? String(postalCode) : '',
-      country: country != null ? String(country) : 'Việt Nam',
+      address: String(shippingAddress.address),
+      city: String(shippingAddress.city || ''),
+      postalCode: String(shippingAddress.postalCode || ''),
+      country: String(shippingAddress.country || 'Việt Nam'),
     };
 
     const transactionRef = `TRANS_${uuidv4()}`;
 
-    // Resolve shop_id for each item: use item.shop or look up Book.shop_id
+    // 1. Lấy thông tin Shop ID chuẩn từ DB
     const productIds = [...new Set(orderItems.map((item) => item.product || item.book).filter(Boolean))];
     const books = await Book.find({ _id: { $in: productIds } }).select('_id shop_id').session(session).lean();
+    
     const productToShop = {};
     for (const b of books) {
       productToShop[b._id.toString()] = b.shop_id;
     }
 
+    // 2. Gom nhóm sản phẩm theo Shop
     const itemsByShop = {};
     for (const item of orderItems) {
       const productId = item.product || item.book;
-      if (!productId || item.name == null || item.qty == null || item.price == null) continue;
+      if (!productId) continue;
+
       let shopId = item.shop;
+      // Fallback: Nếu frontend thiếu shopId, lấy từ DB
       if (!shopId && productToShop[productId.toString()]) {
         shopId = productToShop[productId.toString()];
       }
       if (!shopId) continue;
-      const shopKey = shopId.toString ? shopId.toString() : String(shopId);
+
+      const shopKey = shopId.toString();
       if (!itemsByShop[shopKey]) itemsByShop[shopKey] = [];
+      
       itemsByShop[shopKey].push({
         name: String(item.name),
         qty: Number(item.qty),
-        image: item.image && String(item.image).trim() ? String(item.image) : 'https://via.placeholder.com/150',
+        image: String(item.image || ''),
         price: Number(item.price),
         product: productId,
       });
     }
 
     const createdOrders = [];
+
+    // 3. Tạo Order cho từng Shop
     for (const shopKey of Object.keys(itemsByShop)) {
       const shopItems = itemsByShop[shopKey];
       if (!shopItems.length) continue;
@@ -86,12 +90,20 @@ const addOrderItems = async (req, res) => {
       const savedOrder = await order.save({ session });
       createdOrders.push(savedOrder);
 
+      // --- SỬA LỖI QUAN TRỌNG TẠI ĐÂY ---
       for (const item of shopItems) {
         const book = await Book.findById(item.product).session(session);
         if (!book) throw new Error(`Sách không tồn tại: ${item.name}`);
-        const stock = Number(book.stock_quantity) || 0;
-        if (stock < item.qty) throw new Error(`Sách ${item.name} hết hàng`);
-        book.stock_quantity = stock - item.qty;
+        
+        // Dùng đúng biến countInStock khớp với Model Book.js
+        const stock = Number(book.countInStock) || 0; 
+        
+        if (stock < item.qty) {
+            throw new Error(`Sách "${item.name}" tạm hết hàng (Kho còn: ${stock})`);
+        }
+        
+        // Trừ tồn kho
+        book.countInStock = stock - item.qty;
         await book.save({ session });
       }
     }
@@ -99,7 +111,7 @@ const addOrderItems = async (req, res) => {
     if (createdOrders.length === 0) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({ message: 'Không thể xác định shop cho sản phẩm. Kiểm tra lại giỏ hàng.' });
+      return res.status(400).json({ message: 'Lỗi xác định Shop. Vui lòng thử lại.' });
     }
 
     await session.commitTransaction();
@@ -110,42 +122,31 @@ const addOrderItems = async (req, res) => {
       orders: createdOrders,
       transactionRef,
     });
+
   } catch (error) {
-    try {
-      await session.abortTransaction();
-    } catch (_) {}
+    try { await session.abortTransaction(); } catch (_) {}
     session.endSession();
     console.error('Order Error:', error);
     res.status(500).json({ message: error.message || 'Lỗi tạo đơn hàng' });
   }
 };
 
-// @desc    Lấy chi tiết 1 đơn hàng
-// @route   GET /api/orders/:id
-// @access  Private
 const getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
       .populate('user', 'name email')
-      .populate('shop_id', 'name email');
-
-    if (order) {
-      res.json(order);
-    } else {
-      res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
-    }
+      .populate('shop_id', 'name email shop_info');
+    if (order) res.json(order);
+    else res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Lấy lịch sử mua hàng của User
-// @route   GET /api/orders/myorders
-// @access  Private
 const getMyOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user._id })
-      .populate('shop_id', 'name')
+      .populate('shop_id', 'name shop_info')
       .sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
@@ -153,11 +154,6 @@ const getMyOrders = async (req, res) => {
   }
 };
 
-// --- MỚI: API CHO SELLER (Nguyên nhân lỗi của bạn là thiếu phần này) ---
-
-// @desc    Lấy danh sách đơn hàng KHÁCH ĐẶT tại Shop mình (getSellerOrders)
-// @route   GET /api/orders/seller/orders
-// @access  Private (Seller)
 const getOrdersByShop = async (req, res) => {
   try {
     const orders = await Order.find({
@@ -171,27 +167,21 @@ const getOrdersByShop = async (req, res) => {
   }
 };
 
-// @desc    Cập nhật trạng thái đơn hàng (Duyệt/Giao/Hủy)
-// @route   PUT /api/orders/:id/status
-// @access  Private (Seller)
 const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body; 
     const order = await Order.findById(req.params.id);
 
     if (order) {
-      // Bảo mật: Chỉ chủ shop mới được sửa đơn của mình
-      if (order.shop_id.toString() !== req.user._id.toString()) {
-        return res.status(403).json({ message: 'Bạn không có quyền xử lý đơn hàng này' });
+      if (order.shop_id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Không có quyền' });
       }
 
       order.status = status;
-      
       if (status === 'Delivered') {
         order.isDelivered = true;
         order.deliveredAt = Date.now();
       }
-
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } else {
@@ -206,6 +196,6 @@ module.exports = {
   addOrderItems, 
   getOrderById, 
   getMyOrders,
-  getOrdersByShop,    // <-- Đã có hàm này, lỗi sẽ hết
+  getOrdersByShop,
   updateOrderStatus   
 };
