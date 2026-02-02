@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const asyncHandler = require('express-async-handler');
+const User = require('../models/User.js');
 
-// Middleware xác thực User (Kiểm tra Token)
-const protect = async (req, res, next) => {
+const protect = asyncHandler(async (req, res, next) => {
   let token;
 
   if (
@@ -10,49 +10,56 @@ const protect = async (req, res, next) => {
     req.headers.authorization.startsWith('Bearer')
   ) {
     try {
-      // Lấy token từ header (Bearer <token>)
       token = req.headers.authorization.split(' ')[1];
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      const currentUser = await User.findById(decoded.id).select('-password');
-      if (!currentUser) {
-        return res.status(401).json({ message: 'Token không hợp lệ, vui lòng đăng nhập lại' });
+      // Lấy user từ DB
+      const user = await User.findById(decoded.id).select('-password');
+      
+      if (!user) {
+        res.status(401);
+        throw new Error('Không tìm thấy người dùng');
       }
 
-      if (currentUser.tokenVersion !== decoded.tokenVersion) {
-        return res.status(401).json({ message: 'Phiên đăng nhập đã hết hạn hoặc đã đăng nhập ở thiết bị khác' });
+      // === SINGLE SESSION LOGIC ===
+      // So sánh version. Nếu DB lớn hơn Token -> Token cũ -> Chặn.
+      if (decoded.tokenVersion !== user.tokenVersion) {
+        res.status(401);
+        throw new Error('Phiên đăng nhập hết hạn. Tài khoản đã đăng nhập ở nơi khác.');
       }
 
-      req.user = currentUser;
-      return next();
+      req.user = user;
+      next();
     } catch (error) {
       console.error(error);
-      return res.status(401).json({ message: 'Token không hợp lệ, vui lòng đăng nhập lại' });
+      res.status(401);
+      throw new Error(error.message === 'jwt expired' ? 'Token hết hạn' : 'Phiên đăng nhập không hợp lệ');
     }
   }
 
   if (!token) {
-    return res.status(401).json({ message: 'Không tìm thấy Token, ủy quyền thất bại' });
+    res.status(401);
+    throw new Error('Không có token, vui lòng đăng nhập');
   }
-};
+});
 
-// Middleware kiểm tra quyền Shop (seller)
-const seller = (req, res, next) => {
-  if (req.user && (req.user.role === 'shop' || req.user.role === 'admin')) {
-    next();
-  } else {
-    res.status(403).json({ message: 'Chỉ dành cho tài khoản Shop / Người bán' });
-  }
-};
-
-// Middleware kiểm tra quyền Admin
 const admin = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
     next();
   } else {
-    res.status(403).json({ message: 'Chỉ dành cho Quản trị viên (Admin)' });
+    res.status(401);
+    throw new Error('Không có quyền Admin');
   }
 };
 
-module.exports = { protect, seller, admin };
+const seller = (req, res, next) => {
+    if (req.user && (req.user.role === 'shop' || req.user.role === 'admin')) {
+      next();
+    } else {
+      res.status(401);
+      throw new Error('Không có quyền Seller');
+    }
+  };
+
+module.exports = { protect, admin, seller };

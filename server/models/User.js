@@ -1,45 +1,60 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const userSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  phone: { type: String },
-  address: { type: String },
-  role: {
-    type: String,
-    enum: ['user', 'admin', 'shop'],
-    default: 'user',
+const userSchema = mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      match: [
+        /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+        'Vui lòng nhập địa chỉ email hợp lệ',
+      ],
+    },
+    password: {
+      type: String,
+      required: true,
+    },
+    isAdmin: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+    // Role phân quyền
+    role: {
+        type: String,
+        enum: ['user', 'admin', 'shop'],
+        default: 'user'
+    },
+    // Quản lý phiên đăng nhập
+    tokenVersion: {
+        type: Number,
+        default: 0
+    }
   },
-  tokenVersion: { type: Number, default: 0 },
-  status: {
-    type: String,
-    enum: ['active', 'banned'],
-    default: 'active'
-  },
-  avatar: { type: String },
-  // Thông tin mở rộng cho Seller
-  shop_info: {
-    shop_name: String,
-    shop_avatar: String,
-    rating: { type: Number, default: 0 },
-    follower_count: { type: Number, default: 0 }
+  {
+    timestamps: true,
   }
-}, { timestamps: true });
+);
 
-// Middleware: Mã hóa mật khẩu trước khi lưu vào DB
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
-    next();
-  }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-});
-
-// Method: Kiểm tra mật khẩu khi đăng nhập
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model('User', userSchema);
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) {
+    next();
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+
+const User = mongoose.model('User', userSchema);
+
+module.exports = User;
