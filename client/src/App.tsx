@@ -61,7 +61,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Yêu cầu Role là Shop hoặc Admin
+// Yêu cầu Role là Seller hoặc Admin
 function SellerRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');
   const userInfoStr = localStorage.getItem('userInfo');
@@ -71,8 +71,8 @@ function SellerRoute({ children }: { children: React.ReactNode }) {
   const userInfo = JSON.parse(userInfoStr);
   const role = userInfo.role || 'user';
 
-  // Admin được quyền vào xem Dashboard của Seller để kiểm tra
-  if (role === 'shop' || role === 'admin') {
+  // SỬA Ở ĐÂY: Đổi 'shop' thành 'seller' để khớp với Database
+  if (role === 'seller' || role === 'admin') {
     return <>{children}</>;
   }
 
@@ -153,8 +153,8 @@ export default function App() {
               <NavButton to="/address-book" active={location === '/address-book'}>Sổ địa chỉ</NavButton>
               <NavButton to="/order-history" active={location === '/order-history'}>Đơn mua</NavButton>
 
-              {/* Chỉ hiện menu Seller nếu là Shop hoặc Admin */}
-              {(userRole === 'shop' || userRole === 'admin') && (
+              {/* SỬA Ở ĐÂY: Đổi 'shop' thành 'seller' */}
+              {(userRole === 'seller' || userRole === 'admin') && (
                 <>
                   <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Seller Portal</div>
                   <NavButton to="/seller/dashboard" active={location === '/seller/dashboard'}>Dashboard Người bán</NavButton>

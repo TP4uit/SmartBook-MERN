@@ -55,7 +55,8 @@ const admin = (req, res, next) => {
 };
 
 const seller = (req, res, next) => {
-  if (req.user && (req.user.role === 'shop' || req.user.role === 'admin')) {
+  // SỬA Ở ĐÂY: Đổi 'shop' thành 'seller' để khớp với Database mới
+  if (req.user && (req.user.role === 'seller' || req.user.role === 'admin')) {
     next();
   } else {
     res.status(403);

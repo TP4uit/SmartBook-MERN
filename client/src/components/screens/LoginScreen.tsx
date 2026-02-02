@@ -29,17 +29,14 @@ export function LoginScreen({ onNavigateRegister }: LoginScreenProps) {
       localStorage.setItem('token', data.token);
       localStorage.setItem('userInfo', JSON.stringify({ ...data, token: data.token }));
       
-      // Lấy role từ data trả về (ưu tiên data.role, sau đó đến data.user.role)
-      // Cần đảm bảo backend trả về đúng cấu trúc.
-      // Theo code backend authController: res.json({ _id, name, email, role, token })
       const role = data.role || data.user?.role || 'user';
 
-      console.log('Login Success. Role:', role); // Debug log
+      console.log('Login Success. Role:', role); 
 
       // ĐIỀU HƯỚNG DỰA TRÊN ROLE
       if (role === 'admin') {
-        window.location.href = '/admin/dashboard'; // Dùng window.location để force reload sạch sẽ
-      } else if (role === 'shop') {
+        window.location.href = '/admin/dashboard';
+      } else if (role === 'seller') { // SỬA Ở ĐÂY: Đổi 'shop' thành 'seller'
         window.location.href = '/seller/dashboard';
       } else {
         window.location.href = '/home';
