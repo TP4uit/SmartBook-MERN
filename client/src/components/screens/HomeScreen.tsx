@@ -57,7 +57,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F5F5DC]">
-      <Navbar onNavigate={onNavigate} hideSearch activeScreen="home" />
+      <Navbar hideSearch activeScreen="home" />
 
       <main className="flex-1">
         {/* HERO SECTION */}

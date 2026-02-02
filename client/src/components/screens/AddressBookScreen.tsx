@@ -88,7 +88,7 @@ export function AddressBookScreen({ onNavigate }: AddressBookScreenProps) {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
-      <Navbar onNavigate={onNavigate} activeScreen="profile" />
+      <Navbar activeScreen="profile" />
 
       <main className="container mx-auto px-4 py-8 flex-1">
         <div className="flex flex-col md:flex-row gap-8">

@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import api from '../../services/api';
-import { toast } from 'sonner'; // Giả sử bạn đã cài sonner, hoặc dùng alert thường
 
 interface LoginScreenProps {
-  onLogin: (role: string) => void;
   onNavigateRegister: () => void;
 }
 
-export function LoginScreen({ onLogin, onNavigateRegister }: LoginScreenProps) {
+export function LoginScreen({ onNavigateRegister }: LoginScreenProps) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,11 +30,11 @@ export function LoginScreen({ onLogin, onNavigateRegister }: LoginScreenProps) {
 
       const role = data.user?.role ?? data.role ?? 'user';
       if (role === 'admin') {
-        onLogin('admin');
+        navigate('/admin/dashboard');
       } else if (role === 'shop') {
-        onLogin('shop');
+        navigate('/seller/dashboard');
       } else {
-        onLogin('user');
+        navigate('/home');
       }
     } catch (err: unknown) {
       console.error(err);

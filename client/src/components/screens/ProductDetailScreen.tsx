@@ -97,7 +97,7 @@ export function ProductDetailScreen({ onNavigate, productId }: ProductDetailScre
   if (!productId) {
     return (
       <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
-        <Navbar onNavigate={onNavigate} activeScreen="product-detail" />
+        <Navbar activeScreen="product-detail" />
         <main className="container mx-auto px-4 py-8 flex-1 flex items-center justify-center">
           <p className="text-gray-500">Chọn một cuốn sách để xem chi tiết.</p>
         </main>
@@ -109,7 +109,7 @@ export function ProductDetailScreen({ onNavigate, productId }: ProductDetailScre
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
-        <Navbar onNavigate={onNavigate} activeScreen="product-detail" />
+        <Navbar activeScreen="product-detail" />
         <main className="container mx-auto px-4 py-8 flex-1 flex items-center justify-center">
           <p className="text-gray-500">Đang tải...</p>
         </main>
@@ -121,7 +121,7 @@ export function ProductDetailScreen({ onNavigate, productId }: ProductDetailScre
   if (error || !book) {
     return (
       <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
-        <Navbar onNavigate={onNavigate} activeScreen="product-detail" />
+        <Navbar activeScreen="product-detail" />
         <main className="container mx-auto px-4 py-8 flex-1 flex items-center justify-center">
           <p className="text-gray-500">{error ?? 'Không tìm thấy sách'}</p>
         </main>
@@ -132,7 +132,7 @@ export function ProductDetailScreen({ onNavigate, productId }: ProductDetailScre
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F5F5DC]/30">
-      <Navbar onNavigate={onNavigate} activeScreen="product-detail" />
+      <Navbar activeScreen="product-detail" />
 
       <main className="container mx-auto px-4 py-8 flex-1">
         {/* Breadcrumb */}

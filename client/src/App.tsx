@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { LoginScreen } from './components/screens/LoginScreen';
 import { RegisterScreen } from './components/screens/RegisterScreen';
 import { HomeScreen } from './components/screens/HomeScreen';
@@ -20,162 +21,163 @@ import { ChatWidget } from './components/widgets/ChatWidget';
 import { Button } from './components/ui/button';
 import { Menu } from 'lucide-react';
 
-// Color Palette Definition
-// Primary: #008080 (Deep Teal)
-// Secondary: #F5F5DC (Warm Paper White)
-// Accent: #FFC107 (Amber)
+const PATH_MAP: Record<string, string> = {
+  home: '/home',
+  login: '/login',
+  register: '/register',
+  marketplace: '/marketplace',
+  cart: '/cart',
+  checkout: '/checkout',
+  profile: '/profile',
+  'address-book': '/address-book',
+  'order-history': '/order-history',
+  'seller-dashboard': '/seller/dashboard',
+  'add-product': '/seller/add-product',
+  'seller-orders': '/seller/orders',
+  'seller-finance': '/seller/finance',
+  'admin-dashboard': '/admin/dashboard',
+  'admin-users': '/admin/users',
+  'admin-shops': '/admin/shops',
+};
 
-type Screen = 
-  | 'login'
-  | 'register'
-  | 'home' 
-  | 'marketplace' 
-  | 'product-detail' 
-  | 'cart' 
-  | 'checkout'
-  | 'profile'
-  | 'profile-from-register' 
-  | 'address-book'
-  | 'order-history'
-  | 'seller-dashboard' 
-  | 'add-product' 
-  | 'seller-orders'
-  | 'seller-finance'
-  | 'admin-dashboard'
-  | 'admin-users'
-  | 'admin-shops';
-
-export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('home');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-
-  const handleNavigate = (screen: string, productId?: string) => {
-    if (screen === 'product-detail' && productId) {
-      setSelectedProductId(productId);
-    } else {
-      setSelectedProductId(null);
-    }
-    setCurrentScreen(screen as Screen);
-  };
-
-  const renderScreen = () => {
-    const userInfo = (() => {
-      try {
-        return JSON.parse(localStorage.getItem('userInfo') || '{}');
-      } catch {
-        return {};
-      }
-    })();
-    const role = userInfo.role as string | undefined;
-
-    const isAdminRoute = currentScreen === 'admin-dashboard' || currentScreen === 'admin-users' || currentScreen === 'admin-shops';
-    const isSellerRoute = currentScreen === 'seller-dashboard' || currentScreen === 'add-product' || currentScreen === 'seller-orders' || currentScreen === 'seller-finance';
-
-    if (isAdminRoute && role !== 'admin') {
-      return <HomeScreen onNavigate={handleNavigate} />;
-    }
-    if (isSellerRoute && role !== 'shop') {
-      return <HomeScreen onNavigate={handleNavigate} />;
-    }
-
-    switch (currentScreen) {
-      case 'login': return (
-        <LoginScreen
-          onLogin={(r) => {
-            setCurrentScreen(r === 'admin' ? 'admin-dashboard' : r === 'shop' ? 'seller-dashboard' : 'home');
-          }}
-          onNavigateRegister={() => setCurrentScreen('register')}
-        />
-      );
-      case 'register': return <RegisterScreen onRegister={() => setCurrentScreen('profile-from-register')} onNavigateLogin={() => setCurrentScreen('login')} />;
-
-      case 'home': return <HomeScreen onNavigate={handleNavigate} />;
-      case 'marketplace': return <MarketplaceScreen onNavigate={handleNavigate} />;
-      case 'product-detail': return <ProductDetailScreen onNavigate={handleNavigate} productId={selectedProductId} />;
-      case 'cart': return <CartScreen onNavigate={handleNavigate} />;
-      case 'checkout': return <CheckoutScreen onNavigate={handleNavigate} />;
-      case 'profile': return <ProfileScreen onNavigate={handleNavigate} />;
-      case 'profile-from-register': return <ProfileScreen onNavigate={handleNavigate} fromRegister={true} />;
-      case 'address-book': return <AddressBookScreen onNavigate={handleNavigate} />;
-      case 'order-history': return <OrderHistoryScreen onNavigate={handleNavigate} />;
-      case 'seller-dashboard': return <SellerDashboardScreen onNavigate={handleNavigate} />;
-      case 'add-product': return <AddProductScreen onNavigate={handleNavigate} />;
-      case 'seller-orders': return <SellerOrdersScreen onNavigate={handleNavigate} />;
-      case 'seller-finance': return <SellerFinanceScreen onNavigate={handleNavigate} />;
-      case 'admin-dashboard': return <AdminDashboardScreen onNavigate={handleNavigate} />;
-      case 'admin-users': return <AdminUsersScreen onNavigate={handleNavigate} />;
-      case 'admin-shops': return <AdminShopsScreen onNavigate={handleNavigate} />;
-      default: return <HomeScreen onNavigate={handleNavigate} />;
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#F5F5DC] font-sans text-slate-900 relative">
-      {/* Dev Navigation Bar for Prototype */}
-      <div className="fixed top-4 left-4 z-50">
-        <div className="relative">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            aria-label="Mở menu điều hướng" // Đã thêm aria-label sửa lỗi Button
-            className="rounded-full bg-white shadow-lg border-[#008080] text-[#008080] hover:bg-[#008080] hover:text-white"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          
-          {isMenuOpen && (
-            <div className="absolute top-12 left-0 w-64 bg-white rounded-xl shadow-xl border border-gray-200 p-2 flex flex-col gap-1 animate-in fade-in zoom-in duration-200 max-h-[80vh] overflow-y-auto">
-              <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider">Customer Journey</div>
-              <NavButton active={currentScreen === 'login'} onClick={() => { setCurrentScreen('login'); setIsMenuOpen(false); }}>Đăng nhập</NavButton>
-              <NavButton active={currentScreen === 'register'} onClick={() => { setCurrentScreen('register'); setIsMenuOpen(false); }}>Đăng ký</NavButton>
-              <NavButton active={currentScreen === 'home'} onClick={() => { setCurrentScreen('home'); setIsMenuOpen(false); }}>Trang chủ</NavButton>
-              <NavButton active={currentScreen === 'marketplace'} onClick={() => { setCurrentScreen('marketplace'); setIsMenuOpen(false); }}>Cửa hàng</NavButton>
-              <NavButton active={currentScreen === 'product-detail'} onClick={() => { setCurrentScreen('product-detail'); setIsMenuOpen(false); }}>Chi tiết sách</NavButton>
-              <NavButton active={currentScreen === 'cart'} onClick={() => { setCurrentScreen('cart'); setIsMenuOpen(false); }}>Giỏ hàng</NavButton>
-              <NavButton active={currentScreen === 'profile'} onClick={() => { setCurrentScreen('profile'); setIsMenuOpen(false); }}>Tài khoản</NavButton>
-              <NavButton active={currentScreen === 'address-book'} onClick={() => { setCurrentScreen('address-book'); setIsMenuOpen(false); }}>Sổ địa chỉ</NavButton>
-              <NavButton active={currentScreen === 'order-history'} onClick={() => { setCurrentScreen('order-history'); setIsMenuOpen(false); }}>Đơn mua</NavButton>
-              
-              <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Seller Portal</div>
-              <NavButton active={currentScreen === 'seller-dashboard'} onClick={() => { setCurrentScreen('seller-dashboard'); setIsMenuOpen(false); }}>Dashboard Người bán</NavButton>
-              <NavButton active={currentScreen === 'add-product'} onClick={() => { setCurrentScreen('add-product'); setIsMenuOpen(false); }}>Đăng bán sách</NavButton>
-              <NavButton active={currentScreen === 'seller-orders'} onClick={() => { setCurrentScreen('seller-orders'); setIsMenuOpen(false); }}>Quản lý đơn hàng</NavButton>
-              <NavButton active={currentScreen === 'seller-finance'} onClick={() => { setCurrentScreen('seller-finance'); setIsMenuOpen(false); }}>Tài chính & Rút tiền</NavButton>
-              
-              <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Admin</div>
-              <NavButton active={currentScreen === 'admin-dashboard'} onClick={() => { setCurrentScreen('admin-dashboard'); setIsMenuOpen(false); }}>Tổng quan</NavButton>
-              <NavButton active={currentScreen === 'admin-shops'} onClick={() => { setCurrentScreen('admin-shops'); setIsMenuOpen(false); }}>Quản lý Shop</NavButton>
-              <NavButton active={currentScreen === 'admin-users'} onClick={() => { setCurrentScreen('admin-users'); setIsMenuOpen(false); }}>Quản lý User</NavButton>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <main className="w-full h-full">
-        {renderScreen()}
-      </main>
-
-      {/* Chat Widget (Global) - truyền productId khi đang xem chi tiết sách để AI có ngữ cảnh */}
-      <ChatWidget productId={currentScreen === 'product-detail' ? selectedProductId : undefined} />
-    </div>
-  );
+function getPath(screen: string, productId?: string): string {
+  if (screen === 'product-detail' && productId) return `/product/${productId}`;
+  return PATH_MAP[screen] ?? '/home';
 }
 
-function NavButton({ children, onClick, active }: { children: React.ReactNode, onClick: () => void, active: boolean }) {
+function useNavigateHandler() {
+  const navigate = useNavigate();
+  return (screen: string, productId?: string) => {
+    navigate(getPath(screen, productId));
+  };
+}
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const token = localStorage.getItem('token');
+  if (!token) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function SellerRoute({ children }: { children: React.ReactNode }) {
+  const token = localStorage.getItem('token');
+  if (!token) return <Navigate to="/login" replace />;
+  let role = '';
+  try {
+    role = JSON.parse(localStorage.getItem('userInfo') || '{}').role || '';
+  } catch {}
+  if (role !== 'shop' && role !== 'admin') return <Navigate to="/home" replace />;
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const token = localStorage.getItem('token');
+  if (!token) return <Navigate to="/login" replace />;
+  let role = '';
+  try {
+    role = JSON.parse(localStorage.getItem('userInfo') || '{}').role || '';
+  } catch {}
+  if (role !== 'admin') return <Navigate to="/home" replace />;
+  return <>{children}</>;
+}
+
+function ProductDetailRoute() {
+  const { id } = useParams<{ id: string }>();
+  const onNavigate = useNavigateHandler();
+  return <ProductDetailScreen onNavigate={onNavigate} productId={id ?? null} />;
+}
+
+function NavButton({ to, children, active }: { to: string; children: React.ReactNode; active: boolean }) {
+  const navigate = useNavigate();
   return (
-    <button 
-      onClick={onClick}
-      className={`text-left px-3 py-2 text-sm rounded-md transition-colors flex items-center justify-between group ${
-        active 
-          ? 'bg-[#008080]/10 text-[#008080] font-bold' 
-          : 'hover:bg-gray-100 text-gray-700'
+    <button
+      onClick={() => navigate(to)}
+      className={`text-left px-3 py-2 text-sm rounded-md transition-colors flex items-center justify-between group w-full ${
+        active ? 'bg-[#008080]/10 text-[#008080] font-bold' : 'hover:bg-gray-100 text-gray-700'
       }`}
     >
       {children}
       {active && <span className="w-2 h-2 rounded-full bg-[#008080] animate-pulse" />}
     </button>
+  );
+}
+
+export default function App() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = window.location.pathname;
+
+  const onNavigate = useNavigateHandler();
+
+  return (
+    <div className="min-h-screen bg-[#F5F5DC] font-sans text-slate-900 relative">
+      <div className="fixed top-4 left-4 z-50">
+        <div className="relative">
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Mở menu điều hướng"
+            className="rounded-full bg-white shadow-lg border-[#008080] text-[#008080] hover:bg-[#008080] hover:text-white"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+
+          {isMenuOpen && (
+            <div className="absolute top-12 left-0 w-64 bg-white rounded-xl shadow-xl border border-gray-200 p-2 flex flex-col gap-1 animate-in fade-in zoom-in duration-200 max-h-[80vh] overflow-y-auto">
+              <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider">Customer Journey</div>
+              <NavButton to="/login" active={location === '/login'}>Đăng nhập</NavButton>
+              <NavButton to="/register" active={location === '/register'}>Đăng ký</NavButton>
+              <NavButton to="/home" active={location === '/home'}>Trang chủ</NavButton>
+              <NavButton to="/marketplace" active={location === '/marketplace'}>Cửa hàng</NavButton>
+              <NavButton to="/cart" active={location === '/cart'}>Giỏ hàng</NavButton>
+              <NavButton to="/profile" active={location.startsWith('/profile')}>Tài khoản</NavButton>
+              <NavButton to="/address-book" active={location === '/address-book'}>Sổ địa chỉ</NavButton>
+              <NavButton to="/order-history" active={location === '/order-history'}>Đơn mua</NavButton>
+
+              <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Seller Portal</div>
+              <NavButton to="/seller/dashboard" active={location === '/seller/dashboard'}>Dashboard Người bán</NavButton>
+              <NavButton to="/seller/add-product" active={location === '/seller/add-product'}>Đăng bán sách</NavButton>
+              <NavButton to="/seller/orders" active={location === '/seller/orders'}>Quản lý đơn hàng</NavButton>
+              <NavButton to="/seller/finance" active={location === '/seller/finance'}>Tài chính & Rút tiền</NavButton>
+
+              <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Admin</div>
+              <NavButton to="/admin/dashboard" active={location === '/admin/dashboard'}>Tổng quan</NavButton>
+              <NavButton to="/admin/shops" active={location === '/admin/shops'}>Quản lý Shop</NavButton>
+              <NavButton to="/admin/users" active={location === '/admin/users'}>Quản lý User</NavButton>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <main className="w-full h-full">
+        <Routes>
+          <Route path="/" element={<Navigate to="/home" replace />} />
+          <Route path="/home" element={<HomeScreen onNavigate={onNavigate} />} />
+          <Route path="/login" element={<LoginScreen onNavigateRegister={() => navigate('/register')} />} />
+          <Route path="/register" element={<RegisterScreen onRegister={() => navigate('/profile')} onNavigateLogin={() => navigate('/login')} />} />
+          <Route path="/marketplace" element={<MarketplaceScreen onNavigate={onNavigate} />} />
+          <Route path="/product/:id" element={<ProductDetailRoute />} />
+          <Route path="/cart" element={<CartScreen onNavigate={onNavigate} />} />
+
+          <Route path="/profile" element={<ProtectedRoute><ProfileScreen onNavigate={onNavigate} /></ProtectedRoute>} />
+          <Route path="/checkout" element={<ProtectedRoute><CheckoutScreen onNavigate={onNavigate} /></ProtectedRoute>} />
+          <Route path="/order-history" element={<ProtectedRoute><OrderHistoryScreen onNavigate={onNavigate} /></ProtectedRoute>} />
+          <Route path="/address-book" element={<ProtectedRoute><AddressBookScreen onNavigate={onNavigate} /></ProtectedRoute>} />
+
+          <Route path="/seller/dashboard" element={<SellerRoute><SellerDashboardScreen onNavigate={onNavigate} /></SellerRoute>} />
+          <Route path="/seller/orders" element={<SellerRoute><SellerOrdersScreen onNavigate={onNavigate} /></SellerRoute>} />
+          <Route path="/seller/add-product" element={<SellerRoute><AddProductScreen onNavigate={onNavigate} /></SellerRoute>} />
+          <Route path="/seller/finance" element={<SellerRoute><SellerFinanceScreen onNavigate={onNavigate} /></SellerRoute>} />
+
+          <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboardScreen onNavigate={onNavigate} /></AdminRoute>} />
+          <Route path="/admin/users" element={<AdminRoute><AdminUsersScreen onNavigate={onNavigate} /></AdminRoute>} />
+          <Route path="/admin/shops" element={<AdminRoute><AdminShopsScreen onNavigate={onNavigate} /></AdminRoute>} />
+
+          <Route path="*" element={<Navigate to="/home" replace />} />
+        </Routes>
+      </main>
+
+      <ChatWidget productId={location.startsWith('/product/') ? location.split('/product/')[1]?.split('/')[0] ?? null : undefined} />
+    </div>
   );
 }
