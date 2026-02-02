@@ -60,11 +60,36 @@ export default function App() {
   };
 
   const renderScreen = () => {
+    const userInfo = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('userInfo') || '{}');
+      } catch {
+        return {};
+      }
+    })();
+    const role = userInfo.role as string | undefined;
+
+    const isAdminRoute = currentScreen === 'admin-dashboard' || currentScreen === 'admin-users' || currentScreen === 'admin-shops';
+    const isSellerRoute = currentScreen === 'seller-dashboard' || currentScreen === 'add-product' || currentScreen === 'seller-orders' || currentScreen === 'seller-finance';
+
+    if (isAdminRoute && role !== 'admin') {
+      return <HomeScreen onNavigate={handleNavigate} />;
+    }
+    if (isSellerRoute && role !== 'shop') {
+      return <HomeScreen onNavigate={handleNavigate} />;
+    }
+
     switch (currentScreen) {
-      case 'login': return <LoginScreen onLogin={() => setCurrentScreen('home')} onNavigateRegister={() => setCurrentScreen('register')} />;
+      case 'login': return (
+        <LoginScreen
+          onLogin={(r) => {
+            setCurrentScreen(r === 'admin' ? 'admin-dashboard' : r === 'shop' ? 'seller-dashboard' : 'home');
+          }}
+          onNavigateRegister={() => setCurrentScreen('register')}
+        />
+      );
       case 'register': return <RegisterScreen onRegister={() => setCurrentScreen('profile-from-register')} onNavigateLogin={() => setCurrentScreen('login')} />;
-      
-      // Sử dụng handleNavigate cho các screen còn lại để tránh lỗi Type Mismatch
+
       case 'home': return <HomeScreen onNavigate={handleNavigate} />;
       case 'marketplace': return <MarketplaceScreen onNavigate={handleNavigate} />;
       case 'product-detail': return <ProductDetailScreen onNavigate={handleNavigate} productId={selectedProductId} />;

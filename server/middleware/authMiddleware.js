@@ -13,12 +13,18 @@ const protect = async (req, res, next) => {
       // Lấy token từ header (Bearer <token>)
       token = req.headers.authorization.split(' ')[1];
 
-      // Giải mã token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Lấy thông tin user từ DB (trừ password)
-      req.user = await User.findById(decoded.id).select('-password');
+      const currentUser = await User.findById(decoded.id).select('-password');
+      if (!currentUser) {
+        return res.status(401).json({ message: 'Token không hợp lệ, vui lòng đăng nhập lại' });
+      }
 
+      if (currentUser.tokenVersion !== decoded.tokenVersion) {
+        return res.status(401).json({ message: 'Phiên đăng nhập đã hết hạn hoặc đã đăng nhập ở thiết bị khác' });
+      }
+
+      req.user = currentUser;
       return next();
     } catch (error) {
       console.error(error);
@@ -31,12 +37,12 @@ const protect = async (req, res, next) => {
   }
 };
 
-// Middleware kiểm tra quyền Seller
+// Middleware kiểm tra quyền Shop (seller)
 const seller = (req, res, next) => {
-  if (req.user && (req.user.role === 'seller' || req.user.role === 'admin')) {
+  if (req.user && (req.user.role === 'shop' || req.user.role === 'admin')) {
     next();
   } else {
-    res.status(403).json({ message: 'Chỉ dành cho tài khoản Người bán (Seller)' });
+    res.status(403).json({ message: 'Chỉ dành cho tài khoản Shop / Người bán' });
   }
 };
 

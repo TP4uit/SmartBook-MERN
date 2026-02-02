@@ -1,11 +1,13 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
-// Hàm tạo Token JWT (Hết hạn sau 30 ngày)
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
-  });
+// Hàm tạo Token JWT (payload gồm id, role, tokenVersion để single-session)
+const generateToken = (id, role, tokenVersion) => {
+  return jwt.sign(
+    { id, role, tokenVersion: tokenVersion ?? 0 },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' }
+  );
 };
 
 // @desc    Đăng ký tài khoản
@@ -35,7 +37,7 @@ const registerUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        token: generateToken(user._id), // Trả về token ngay để auto-login
+        token: generateToken(user._id, user.role, user.tokenVersion),
       });
     } else {
       res.status(400).json({ message: 'Dữ liệu user không hợp lệ' });
@@ -45,28 +47,35 @@ const registerUser = async (req, res) => {
   }
 };
 
-// @desc    Đăng nhập
+// @desc    Đăng nhập (increment tokenVersion = single-session; JWT chứa role + tokenVersion)
 // @route   POST /api/auth/login
 // @access  Public
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // 1. Tìm user theo email
     const user = await User.findOne({ email });
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ message: 'Email hoặc mật khẩu không đúng' });
+    }
 
-    // 2. Kiểm tra mật khẩu
-    if (user && (await user.matchPassword(password))) {
-      res.json({
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    const token = generateToken(user._id, user.role, user.tokenVersion);
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      token,
+      user: {
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(401).json({ message: 'Email hoặc mật khẩu không đúng' });
-    }
+      },
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -116,8 +125,8 @@ const updateUserProfile = async (req, res) => {
         // Middleware 'pre save' trong Model User sẽ tự mã hóa
       }
 
-      // Cập nhật thông tin Shop (nếu là Seller)
-      if (user.role === 'seller' && req.body.shop_info) {
+      // Cập nhật thông tin Shop (nếu là Shop)
+      if (user.role === 'shop' && req.body.shop_info) {
         user.shop_info = {
           ...user.shop_info,
           ...req.body.shop_info
@@ -133,7 +142,7 @@ const updateUserProfile = async (req, res) => {
         phone: updatedUser.phone,
         address: updatedUser.address,
         role: updatedUser.role,
-        token: generateToken(updatedUser._id), // Cấp lại token mới
+        token: generateToken(updatedUser._id, updatedUser.role, updatedUser.tokenVersion),
       });
     } else {
       res.status(404).json({ message: 'User không tồn tại' });

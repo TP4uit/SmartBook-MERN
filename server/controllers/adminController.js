@@ -72,7 +72,7 @@ const deleteUser = async (req, res) => {
 // @access  Private (Admin)
 const getAllShops = async (req, res) => {
   try {
-    const sellers = await User.find({ role: 'seller' })
+    const sellers = await User.find({ role: 'shop' })
       .select('-password')
       .sort({ createdAt: -1 });
 
@@ -101,10 +101,10 @@ const getAllShops = async (req, res) => {
 const getAdminStats = async (req, res) => {
   try {
     const [totalUsers, totalSellers, activeSellers, bannedSellers, totalOrders, ordersForSales, totalProducts] = await Promise.all([
-      User.countDocuments({ role: 'customer' }),
-      User.countDocuments({ role: 'seller' }),
-      User.countDocuments({ role: 'seller', status: 'active' }),
-      User.countDocuments({ role: 'seller', status: 'banned' }),
+      User.countDocuments({ role: 'user' }),
+      User.countDocuments({ role: 'shop' }),
+      User.countDocuments({ role: 'shop', status: 'active' }),
+      User.countDocuments({ role: 'shop', status: 'banned' }),
       Order.countDocuments({}),
       Order.find({ status: 'Delivered' }).select('totalPrice'),
       Book.countDocuments({}),

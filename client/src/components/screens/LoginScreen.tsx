@@ -7,7 +7,7 @@ import api from '../../services/api';
 import { toast } from 'sonner'; // Giả sử bạn đã cài sonner, hoặc dùng alert thường
 
 interface LoginScreenProps {
-  onLogin: () => void;
+  onLogin: (role: string) => void;
   onNavigateRegister: () => void;
 }
 
@@ -24,20 +24,22 @@ export function LoginScreen({ onLogin, onNavigateRegister }: LoginScreenProps) {
 
     try {
       const { data } = await api.post('/auth/login', { email, password });
-      
-      // 1. Lưu token và thông tin user
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userInfo', JSON.stringify(data));
-      
-      // 2. Thông báo thành công
-      // toast.success("Đăng nhập thành công!"); 
-      
-      // 3. Chuyển hướng (gọi callback về App.tsx)
-      onLogin(); 
 
-    } catch (err: any) {
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userInfo', JSON.stringify({ ...data.user, token: data.token }));
+
+      const role = data.user?.role ?? data.role ?? 'user';
+      if (role === 'admin') {
+        onLogin('admin');
+      } else if (role === 'shop') {
+        onLogin('shop');
+      } else {
+        onLogin('user');
+      }
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.response?.data?.message || "Đăng nhập thất bại. Vui lòng thử lại.");
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg || 'Đăng nhập thất bại. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
