@@ -3,24 +3,26 @@ const router = express.Router();
 const { 
   addOrderItems, 
   getMyOrders, 
-  getOrderById,
+  getOrderById, 
   getOrdersByShop, 
   updateOrderStatus 
 } = require('../controllers/orderController');
-const { protect } = require('../middleware/authMiddleware'); // Middleware xác thực
+const { protect } = require('../middleware/authMiddleware');
 
-// --- Route cho Người mua ---
+// Route tạo đơn hàng
 router.route('/').post(protect, addOrderItems);
+
+// Route lấy lịch sử đơn hàng của người mua (User)
 router.route('/myorders').get(protect, getMyOrders);
 
-// --- Route cho Người bán (Seller) ---
-// 1. Xem danh sách đơn hàng của Shop
+// Route cho Seller quản lý đơn hàng
 router.route('/seller/orders').get(protect, getOrdersByShop);
 
-// 2. Cập nhật trạng thái đơn hàng
-router.route('/:id/status').put(protect, updateOrderStatus);
+// Route xử lý chi tiết đơn hàng (Lấy ID, Update Status)
+router.route('/:id')
+  .get(protect, getOrderById);
 
-// --- Route chung (Lấy chi tiết đơn) - Để cuối cùng để tránh trùng path ---
-router.route('/:id').get(protect, getOrderById);
+router.route('/:id/status')
+  .put(protect, updateOrderStatus);
 
 module.exports = router;

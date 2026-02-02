@@ -11,9 +11,7 @@ const reviewSchema = mongoose.Schema(
       ref: 'User',
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 const bookSchema = mongoose.Schema(
@@ -23,57 +21,33 @@ const bookSchema = mongoose.Schema(
       required: true,
       ref: 'User',
     },
-    // Nếu bạn muốn mở rộng Multi-vendor thì thêm shop_id, tạm thời dùng user để map
-    name: {
-      type: String,
-      required: true,
+    shop_id: { // Thêm shop_id để tách đơn hàng seller
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User', 
+      required: true 
     },
-    image: {
-      type: String,
-      required: true,
-    },
-    brand: {
-      type: String,
-      required: true,
-    },
-    category: {
-      type: String,
-      required: true,
-    },
-    description: {
-      type: String,
-      required: true,
-    },
+    title: { type: String, required: true },
+    image: { type: String, required: true }, // Ảnh đại diện chính (Thumbnail)
+    images: [{ type: String }], // Mảng ảnh chi tiết (Carousel)
+    author: { type: String, required: true },
+    category: { type: String, required: true },
+    description: { type: String, required: true },
+    price: { type: Number, required: true, default: 0 },
+    countInStock: { type: Number, required: true, default: 0 },
+    rating: { type: Number, required: true, default: 0 },
+    numReviews: { type: Number, required: true, default: 0 },
     reviews: [reviewSchema],
-    rating: {
-      type: Number,
-      required: true,
-      default: 0,
-    },
-    numReviews: {
-      type: Number,
-      required: true,
-      default: 0,
-    },
-    price: {
-      type: Number,
-      required: true,
-      default: 0,
-    },
-    countInStock: {
-      type: Number,
-      required: true,
-      default: 0,
-    },
-    // Các trường AI (Để sau tính tiếp, cứ khai báo để đó)
-    embedding_vector: {
-      type: [Number],
-      select: false, // Mặc định không load ra để nhẹ query
-    },
+    
+    // --- CÁC TRƯỜNG DÀNH CHO AI (FUTURE PROOF) ---
+    ai_embedding: { 
+      type: [Number], // Mảng vector (ví dụ 1536 chiều từ OpenAI)
+      default: [],
+      select: false // Mặc định không load để nhẹ API
+    }, 
+    ai_keywords: { type: [String], default: [] }, // Từ khóa AI trích xuất
+    ai_summary: { type: String }, // Tóm tắt sách do AI viết
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 const Book = mongoose.model('Book', bookSchema);

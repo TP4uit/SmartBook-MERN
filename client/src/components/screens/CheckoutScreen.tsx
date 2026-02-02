@@ -12,8 +12,8 @@ interface CheckoutScreenProps {
 
 export function CheckoutScreen({ onNavigate }: CheckoutScreenProps) {
   const { cartItems, totalPrice, clearCart } = useCart();
-  const [address, setAddress] = useState('123 Đường Nguyễn Huệ, Quận 1, TP. HCM');
-  const [phone, setPhone] = useState('0901234567');
+  const [address, setAddress] = useState('KTX Khu B, ĐHQG');
+  const [phone, setPhone] = useState('090xxxxxxx');
   const [city, setCity] = useState('TP. Hồ Chí Minh');
   const [postalCode, setPostalCode] = useState('700000');
   const [country, setCountry] = useState('Việt Nam');
@@ -29,13 +29,14 @@ export function CheckoutScreen({ onNavigate }: CheckoutScreenProps) {
     setIsLoading(true);
     setErrorMessage(null);
     try {
+      // Gửi đúng cấu trúc Controller yêu cầu
       await api.post('/orders', {
         orderItems: cartItems.map((item) => ({
           name: item.title,
           image: item.image,
           price: item.price,
-          product: item.bookId,
-          shop: item.shopId,
+          product: item.bookId, // Controller đọc field 'product'
+          shop: item.shopId,    // Quan trọng để tách đơn
           qty: item.quantity,
         })),
         shippingAddress: {
@@ -49,11 +50,9 @@ export function CheckoutScreen({ onNavigate }: CheckoutScreenProps) {
 
       clearCart();
       setIsSuccess(true);
-    } catch (err: unknown) {
-      const msg = err && typeof err === 'object' && 'response' in err
-        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-        : null;
-      setErrorMessage(msg ?? 'Đặt hàng thất bại. Vui lòng thử lại.');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Đặt hàng thất bại. Vui lòng thử lại.';
+      setErrorMessage(msg);
     } finally {
       setIsLoading(false);
     }
@@ -99,6 +98,16 @@ export function CheckoutScreen({ onNavigate }: CheckoutScreenProps) {
                 <div>
                   <Label>Địa chỉ chi tiết</Label>
                   <Input value={address} onChange={e => setAddress(e.target.value)} className="bg-gray-50 mt-1" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                   <div>
+                      <Label>Thành phố</Label>
+                      <Input value={city} onChange={e => setCity(e.target.value)} className="bg-gray-50 mt-1" />
+                   </div>
+                   <div>
+                      <Label>Quốc gia</Label>
+                      <Input value={country} onChange={e => setCountry(e.target.value)} className="bg-gray-50 mt-1" />
+                   </div>
                 </div>
               </div>
             </div>

@@ -1,126 +1,171 @@
-const asyncHandler = require('express-async-handler');
-const Product = require('../models/Book'); // Model Book
+const Book = require('../models/Book');
 
 // @desc    Fetch all products
 // @route   GET /api/products
 // @access  Public
-exports.getProducts = asyncHandler(async (req, res) => {
-  // Logic tìm kiếm cơ bản + filter
-  const keyword = req.query.keyword
-    ? {
-        name: {
-          $regex: req.query.keyword,
-          $options: 'i',
-        },
-      }
-    : {};
+const getProducts = async (req, res) => {
+  try {
+    const pageSize = 12;
+    const page = Number(req.query.pageNumber) || 1;
 
-  const products = await Product.find({ ...keyword });
-  res.json(products);
-});
+    // Build Keyword & Filter Query
+    const keyword = req.query.keyword
+      ? {
+          title: {
+            $regex: req.query.keyword,
+            $options: 'i',
+          },
+        }
+      : {};
+      
+    const category = req.query.category ? { category: req.query.category } : {};
+    
+    // Price Filter
+    const minPrice = req.query.minPrice ? Number(req.query.minPrice) : 0;
+    const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : 100000000;
+    const priceFilter = { price: { $gte: minPrice, $lte: maxPrice } };
+
+    const count = await Book.countDocuments({ ...keyword, ...category, ...priceFilter });
+    const books = await Book.find({ ...keyword, ...category, ...priceFilter })
+      .populate('shop_id', 'shop_info.shop_name') // Populate tên Shop
+      .limit(pageSize)
+      .skip(pageSize * (page - 1))
+      .sort({ createdAt: -1 });
+
+    // Trả về Array trực tiếp như Frontend yêu cầu
+    res.json(books);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 // @desc    Fetch single product
 // @route   GET /api/products/:id
 // @access  Public
-exports.getProductById = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id);
+const getProductById = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id)
+      .populate('shop_id', 'shop_info.shop_name shop_info.shop_avatar'); // Lấy info Shop để hiển thị
 
-  if (product) {
-    res.json(product);
-  } else {
-    res.status(404);
-    throw new Error('Product not found');
+    if (book) {
+      res.json(book);
+    } else {
+      res.status(404).json({ message: 'Product not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
-});
+};
 
-// @desc    Create a product
+// @desc    Create a product (Seller)
 // @route   POST /api/products
-// @access  Private/Seller/Admin
-exports.createProduct = asyncHandler(async (req, res) => {
-  const {
-    name,
-    price,
-    description,
-    image,
-    brand,
-    category,
-    countInStock,
-  } = req.body;
+// @access  Private/Seller
+const createProduct = async (req, res) => {
+  try {
+    const {
+      title,
+      price,
+      image,
+      author,
+      category,
+      countInStock,
+      description,
+    } = req.body;
 
-  // Tạo sản phẩm mới với Shop ID là người đang đăng nhập
-  const product = new Product({
-    name,
-    price,
-    user: req.user._id, // Quan trọng: Gắn user vào sản phẩm
-    shop: req.user.shop_info ? req.user._id : undefined, // Nếu có logic shop riêng
-    image,
-    brand,
-    category,
-    countInStock,
-    numReviews: 0,
-    description,
-  });
+    // Validate
+    if (!title || !author || !price) {
+        return res.status(400).json({ message: 'Vui lòng điền đầy đủ thông tin sách' });
+    }
 
-  const createdProduct = await product.save();
-  res.status(201).json(createdProduct);
-});
+    const book = new Book({
+      title,
+      price,
+      user: req.user._id,
+      shop_id: req.user._id, // QUAN TRỌNG: Gán sách này thuộc về Shop của user đang login
+      image: image || '/images/sample.jpg',
+      author,
+      category,
+      countInStock,
+      description,
+      numReviews: 0,
+      rating: 0,
+      ai_keywords: [category.toLowerCase(), 'new book'], // Tạo keyword mặc định cho AI sau này
+    });
+
+    const createdBook = await book.save();
+    res.status(201).json(createdBook);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 // @desc    Update a product
 // @route   PUT /api/products/:id
-// @access  Private/Seller/Admin
-exports.updateProduct = asyncHandler(async (req, res) => {
-  const {
-    name,
-    price,
-    description,
-    image,
-    brand,
-    category,
-    countInStock,
-  } = req.body;
+// @access  Private/Seller
+const updateProduct = async (req, res) => {
+  try {
+    const {
+      title,
+      price,
+      description,
+      image,
+      author,
+      category,
+      countInStock,
+    } = req.body;
 
-  const product = await Product.findById(req.params.id);
+    const book = await Book.findById(req.params.id);
 
-  if (product) {
-    // Kiểm tra quyền: Chỉ chủ shop hoặc Admin mới được sửa
-    if (product.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-        res.status(401);
-        throw new Error('Bạn không có quyền sửa sản phẩm này');
+    if (book) {
+      // Check quyền sở hữu: Chỉ chủ shop mới được sửa sách của mình
+      if (book.shop_id.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+          return res.status(403).json({ message: 'Bạn không có quyền sửa sách này' });
+      }
+
+      book.title = title || book.title;
+      book.price = price || book.price;
+      book.description = description || book.description;
+      book.image = image || book.image;
+      book.author = author || book.author;
+      book.category = category || book.category;
+      book.countInStock = countInStock || book.countInStock;
+
+      const updatedBook = await book.save();
+      res.json(updatedBook);
+    } else {
+      res.status(404).json({ message: 'Product not found' });
     }
-
-    product.name = name || product.name;
-    product.price = price || product.price;
-    product.description = description || product.description;
-    product.image = image || product.image;
-    product.brand = brand || product.brand;
-    product.category = category || product.category;
-    product.countInStock = countInStock || product.countInStock;
-
-    const updatedProduct = await product.save();
-    res.json(updatedProduct);
-  } else {
-    res.status(404);
-    throw new Error('Product not found');
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
-});
+};
 
 // @desc    Delete a product
 // @route   DELETE /api/products/:id
-// @access  Private/Seller/Admin
-exports.deleteProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id);
+// @access  Private/Seller
+const deleteProduct = async (req, res) => {
+    try {
+      const book = await Book.findById(req.params.id);
+  
+      if (book) {
+        if (book.shop_id.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+            return res.status(403).json({ message: 'Bạn không có quyền xóa sách này' });
+        }
 
-  if (product) {
-    // Kiểm tra quyền
-    if (product.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-        res.status(401);
-        throw new Error('Bạn không có quyền xóa sản phẩm này');
+        await book.deleteOne();
+        res.json({ message: 'Product removed' });
+      } else {
+        res.status(404).json({ message: 'Product not found' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
     }
-    
-    await product.deleteOne();
-    res.json({ message: 'Product removed' });
-  } else {
-    res.status(404);
-    throw new Error('Product not found');
-  }
-});
+  };
+
+module.exports = {
+  getProducts,
+  getProductById,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+};

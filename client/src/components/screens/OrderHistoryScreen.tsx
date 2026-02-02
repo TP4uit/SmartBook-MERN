@@ -3,8 +3,8 @@ import { Navbar } from '../layout/Navbar';
 import { Footer } from '../layout/Footer';
 import { ProfileSidebar } from '../layout/ProfileSidebar';
 import { Button } from '../ui/button';
-import { Store, Truck, MessageCircle, Loader2 } from 'lucide-react';
-import api, { getMyOrders } from '../../services/api';
+import { Store, Truck, Loader2 } from 'lucide-react';
+import api from '../../services/api';
 
 interface OrderHistoryScreenProps {
   onNavigate: (screen: string) => void;
@@ -53,7 +53,8 @@ export function OrderHistoryScreen({ onNavigate }: OrderHistoryScreenProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getMyOrders()
+    // Gọi API trực tiếp
+    api.get<Order[]>('/orders/myorders')
       .then(({ data }) => setOrders(Array.isArray(data) ? data : []))
       .catch(() => setOrders([]))
       .finally(() => setLoading(false));
@@ -131,7 +132,6 @@ export function OrderHistoryScreen({ onNavigate }: OrderHistoryScreenProps) {
                         <div className="flex items-center gap-2">
                           <Store className="h-4 w-4 text-gray-500" />
                           <span className="font-bold text-gray-900 text-sm">{shopName(order)}</span>
-                          <Button variant="outline" size="sm" className="h-6 text-xs border-gray-300">Xem Shop</Button>
                         </div>
                         <div className="flex items-center gap-3 text-sm">
                           <span className="text-[#008080] flex items-center gap-1">
@@ -147,7 +147,7 @@ export function OrderHistoryScreen({ onNavigate }: OrderHistoryScreenProps) {
                       <div className="p-4 space-y-4">
                         {order.orderItems?.map((item, idx) => (
                           <div key={idx} className="flex gap-4">
-                            <img src={item.image || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=200'} alt="" className="w-20 h-28 object-cover rounded border border-gray-100" />
+                            <img src={item.image} alt="" className="w-20 h-28 object-cover rounded border border-gray-100" />
                             <div className="flex-1">
                               <h3 className="font-medium text-gray-900 line-clamp-1">{item.name}</h3>
                               <div className="flex items-center justify-between mt-2">
@@ -165,9 +165,6 @@ export function OrderHistoryScreen({ onNavigate }: OrderHistoryScreenProps) {
                           <span className="text-xl font-bold text-[#008080]">{order.totalPrice?.toLocaleString('vi-VN')}đ</span>
                         </div>
                         <div className="flex justify-end gap-3">
-                          <Button variant="outline" className="border-gray-200 text-gray-600">
-                            Liên hệ người bán
-                          </Button>
                           <Button className="bg-[#008080] hover:bg-[#006666]" onClick={() => onNavigate('marketplace')}>
                             Mua lại
                           </Button>
@@ -178,7 +175,6 @@ export function OrderHistoryScreen({ onNavigate }: OrderHistoryScreenProps) {
                 })
               )}
             </div>
-
           </div>
         </div>
       </main>

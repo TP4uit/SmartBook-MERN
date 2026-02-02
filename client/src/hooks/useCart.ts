@@ -13,7 +13,7 @@ export interface CartItem {
 export function useCart() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
-  // 1. Load giỏ hàng từ LocalStorage khi khởi động
+  // 1. Load giỏ hàng từ LocalStorage
   useEffect(() => {
     const storedCart = localStorage.getItem('cart');
     if (storedCart) {
@@ -21,10 +21,9 @@ export function useCart() {
     }
   }, []);
 
-  // 2. Lưu giỏ hàng mỗi khi có thay đổi
+  // 2. Lưu giỏ hàng & Sync Event
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cartItems));
-    // Trigger sự kiện để Navbar cập nhật badge số lượng (nếu cần real-time hơn)
     window.dispatchEvent(new Event('storage')); 
   }, [cartItems]);
 
@@ -34,14 +33,21 @@ export function useCart() {
     price: number;
     image?: string;
     images?: string[];
-    shop_id?: { _id?: string; name?: string };
+    shop_id?: { _id?: string; name?: string } | string;
   }) => {
-    const shopId = typeof product.shop_id === 'object' && product.shop_id?._id
-      ? String(product.shop_id._id)
-      : 'unknown';
-    const shopName = typeof product.shop_id === 'object' && product.shop_id?.name
-      ? product.shop_id.name
-      : 'Cửa hàng sách';
+    // Logic xử lý Shop ID an toàn
+    let shopId = 'unknown';
+    let shopName = 'Cửa hàng sách';
+
+    if (product.shop_id) {
+        if (typeof product.shop_id === 'object') {
+            shopId = product.shop_id._id ? String(product.shop_id._id) : 'unknown';
+            shopName = product.shop_id.name ? product.shop_id.name : 'Cửa hàng sách';
+        } else {
+            shopId = String(product.shop_id);
+        }
+    }
+
     const image = product.image ?? product.images?.[0] ?? 'https://via.placeholder.com/150';
 
     setCartItems((prev) => {
@@ -83,10 +89,8 @@ export function useCart() {
 
   const clearCart = () => setCartItems([]);
 
-  // 3. Tính tổng tiền
   const totalPrice = cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
 
-  // 4. Gom nhóm theo Shop (Logic quan trọng cho UI)
   const groupedItems = cartItems.reduce((acc, item) => {
     if (!acc[item.shopName]) {
       acc[item.shopName] = [];
