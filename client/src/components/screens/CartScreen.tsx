@@ -46,13 +46,24 @@ export function CartScreen({ onNavigate }: CartScreenProps) {
                 <div className="space-y-4">
                   {items.map((item) => (
                     <div key={item.bookId} className="flex gap-4">
-                      <div className="w-20 h-28 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                      {/* Ảnh chuẩn 2:3 */}
+                      <div className="w-20 aspect-[2/3] bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
+                         <img 
+                           src={item.image.startsWith('/uploads') ? `http://localhost:5000${item.image}` : item.image} 
+                           alt={item.title} 
+                           className="w-full h-full object-cover" 
+                         />
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-start">
                           <h3 className="font-medium text-gray-900 line-clamp-2">{item.title}</h3>
-                          <button onClick={() => removeFromCart(item.bookId)} className="text-gray-400 hover:text-red-500 p-1">
+                          {/* Nút xóa sản phẩm - Đã thêm aria-label */}
+                          <button 
+                            onClick={() => removeFromCart(item.bookId)} 
+                            className="text-gray-400 hover:text-red-500 p-1"
+                            aria-label="Xóa sản phẩm khỏi giỏ hàng"
+                            title="Xóa sản phẩm"
+                          >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
@@ -63,14 +74,20 @@ export function CartScreen({ onNavigate }: CartScreenProps) {
                         {/* Bộ tăng giảm số lượng */}
                         <div className="flex items-center gap-3 mt-3">
                           <div className="flex items-center border border-gray-200 rounded-lg">
+                            {/* Nút giảm - Đã thêm aria-label */}
                             <button 
                               onClick={() => updateQuantity(item.bookId, -1)}
                               className="px-3 py-1 hover:bg-gray-50 text-gray-600"
+                              aria-label="Giảm số lượng"
+                              title="Giảm"
                             >-</button>
                             <span className="px-2 text-sm font-medium w-8 text-center">{item.quantity}</span>
+                            {/* Nút tăng - Đã thêm aria-label */}
                             <button 
                               onClick={() => updateQuantity(item.bookId, 1)}
                               className="px-3 py-1 hover:bg-gray-50 text-gray-600"
+                              aria-label="Tăng số lượng"
+                              title="Tăng"
                             >+</button>
                           </div>
                         </div>

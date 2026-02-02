@@ -1,23 +1,19 @@
-const path = require('path');
 const express = require('express');
 const multer = require('multer');
+const path = require('path');
 const router = express.Router();
 
-// Cấu hình nơi lưu trữ và tên file
 const storage = multer.diskStorage({
   destination(req, file, cb) {
-    cb(null, 'uploads/'); // Lưu vào thư mục uploads ở root
+    cb(null, 'uploads/'); // Lưu vào thư mục uploads ở root server
   },
   filename(req, file, cb) {
-    // Đặt tên file = tên gốc + ngày tháng + đuôi file (tránh trùng tên)
-    cb(
-      null,
-      `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`
-    );
+    // Đặt tên file: image-[timestamp].[ext]
+    cb(null, `image-${Date.now()}${path.extname(file.originalname)}`);
   },
 });
 
-// Hàm kiểm tra định dạng file (chỉ cho phép ảnh)
+// Validate file type
 function checkFileType(file, cb) {
   const filetypes = /jpg|jpeg|png|webp/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
@@ -26,7 +22,7 @@ function checkFileType(file, cb) {
   if (extname && mimetype) {
     return cb(null, true);
   } else {
-    cb('Images only!'); // Chỉ chấp nhận file ảnh
+    cb('Images only!');
   }
 }
 
@@ -37,15 +33,9 @@ const upload = multer({
   },
 });
 
-// Route nhận file upload
-// Frontend sẽ gọi POST /api/upload và gửi file qua key 'image'
+// Route upload single image
 router.post('/', upload.single('image'), (req, res) => {
-  if (!req.file) {
-      res.status(400);
-      throw new Error('Chưa chọn file ảnh');
-  }
-  // Trả về đường dẫn ảnh để frontend lưu vào DB
-  // Ví dụ: /uploads/image-123456.jpg
+  // Trả về đường dẫn tương đối (ví dụ: /uploads/image-123.jpg)
   res.send(`/${req.file.path.replace(/\\/g, '/')}`);
 });
 
