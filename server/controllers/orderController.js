@@ -72,6 +72,7 @@ const addOrderItems = async (req, res) => {
 
       const order = new Order({
         user: req.user._id,
+        shop: shopKey,
         shop_id: shopKey,
         transaction_ref: transactionRef,
         orderItems: shopItems,
@@ -154,16 +155,16 @@ const getMyOrders = async (req, res) => {
 
 // --- MỚI: API CHO SELLER (Nguyên nhân lỗi của bạn là thiếu phần này) ---
 
-// @desc    Lấy danh sách đơn hàng KHÁCH ĐẶT tại Shop mình
+// @desc    Lấy danh sách đơn hàng KHÁCH ĐẶT tại Shop mình (getSellerOrders)
 // @route   GET /api/orders/seller/orders
 // @access  Private (Seller)
 const getOrdersByShop = async (req, res) => {
   try {
-    // Tìm các đơn hàng mà shop_id trùng với ID người đang login
-    const orders = await Order.find({ shop_id: req.user._id })
-      .populate('user', 'name email') // Lấy thông tin khách mua
+    const orders = await Order.find({
+      $or: [{ shop: req.user._id }, { shop_id: req.user._id }],
+    })
+      .populate('user', 'name email')
       .sort({ createdAt: -1 });
-    
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: error.message });

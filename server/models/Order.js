@@ -6,10 +6,15 @@ const orderSchema = mongoose.Schema({
     required: true,
     ref: 'User', // Người mua
   },
+  shop: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  },
   shop_id: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
-    ref: 'User', // Người bán (Trong mô hình mới, đây cũng là User)
+    ref: 'User', // Người bán (alias / backward compat)
   },
   // --- BỔ SUNG: Mã giao dịch tổng để gom nhóm đơn tách ---
   transaction_ref: { 

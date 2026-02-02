@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Navbar } from '../layout/Navbar';
 import { Footer } from '../layout/Footer';
 import { Button } from '../ui/button';
@@ -50,7 +51,9 @@ interface SimilarBook {
   images?: string[];
 }
 
-export function ProductDetailScreen({ onNavigate, productId }: ProductDetailScreenProps) {
+export function ProductDetailScreen({ onNavigate, productId: productIdProp }: ProductDetailScreenProps) {
+  const { id: idFromRoute } = useParams<{ id: string }>();
+  const productId = idFromRoute ?? productIdProp ?? null;
   const { addToCart } = useCart();
   const [book, setBook] = useState<BookDetail | null>(null);
   const [similarBooks, setSimilarBooks] = useState<SimilarBook[]>([]);
