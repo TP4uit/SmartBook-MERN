@@ -1,28 +1,35 @@
 const express = require('express');
 const router = express.Router();
-const {
-  getAllUsers,
-  toggleUserStatus,
-  deleteUser,
-  getAllShops,
-  getAdminStats,
-  getDashboardStats,
-} = require('../controllers/adminController');
+const adminController = require('../controllers/adminController');
 const { protect, admin } = require('../middleware/authMiddleware');
 
-// Tất cả route admin cần protect + admin middleware
-router.use(protect, admin);
+// Debug: Kiểm tra xem controller đã load đủ hàm chưa
+console.log('✅ Admin Controller Loaded:', Object.keys(adminController));
 
-// User management
-router.route('/users').get(getAllUsers);
-router.route('/users/:id/status').put(toggleUserStatus);
-router.route('/users/:id').delete(deleteUser);
+const {
+  getUsers,
+  deleteUser,
+  getUserById,
+  updateUser,
+  createUser,
+  getDashboardStats
+} = adminController;
 
-// Shop management
-router.route('/shops').get(getAllShops);
+// Tất cả routes dưới đây đều cần quyền Admin
+router.use(protect);
+router.use(admin);
 
-// Stats
-router.route('/stats').get(getAdminStats);
-router.route('/dashboard').get(getDashboardStats);
+// Route thống kê (Đặt lên đầu để tránh trùng với :id)
+router.get('/stats', getDashboardStats);
+
+// Route quản lý User
+router.route('/users')
+    .get(getUsers)
+    .post(createUser);
+
+router.route('/users/:id')
+    .delete(deleteUser)
+    .get(getUserById)
+    .put(updateUser);
 
 module.exports = router;

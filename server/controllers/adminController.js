@@ -1,154 +1,132 @@
+const asyncHandler = require('express-async-handler');
 const User = require('../models/User');
 const Order = require('../models/Order');
-const Book = require('../models/Book');
+const Product = require('../models/Book'); // Model sách tên là Book
 
-// @desc    Lấy danh sách tất cả users (Admin)
+// @desc    Get all users
 // @route   GET /api/admin/users
-// @access  Private (Admin)
-const getAllUsers = async (req, res) => {
-  try {
-    const users = await User.find({})
-      .select('-password')
-      .sort({ createdAt: -1 });
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+exports.getUsers = asyncHandler(async (req, res) => {
+  const users = await User.find({});
+  res.json(users);
+});
+
+// @desc    Delete user
+// @route   DELETE /api/admin/users/:id
+exports.deleteUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+
+  if (user) {
+    await user.deleteOne();
+    res.json({ message: 'User removed' });
+  } else {
+    res.status(404);
+    throw new Error('User not found');
   }
-};
+});
 
-// @desc    Khóa/Mở khóa tài khoản user
-// @route   PUT /api/admin/users/:id/status
-// @access  Private (Admin)
-const toggleUserStatus = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: 'User không tồn tại' });
+// @desc    Create new user (User or Shop)
+// @route   POST /api/admin/users
+exports.createUser = asyncHandler(async (req, res) => {
+  const { name, email, password, role, shopName, shopDescription } = req.body;
+
+  const userExists = await User.findOne({ email });
+  if (userExists) {
+    res.status(400);
+    throw new Error('Email đã tồn tại');
+  }
+
+  // Chuẩn bị dữ liệu shop nếu role là shop
+  let shopInfo = {};
+  if (role === 'shop') {
+    if (!shopName) {
+      res.status(400);
+      throw new Error('Tên cửa hàng là bắt buộc đối với tài khoản Shop');
     }
+    shopInfo = {
+      name: shopName,
+      description: shopDescription || '',
+    };
+  }
 
-    // Không cho phép khóa admin
-    if (user.role === 'admin') {
-      return res.status(403).json({ message: 'Không thể khóa tài khoản Admin' });
-    }
+  const user = await User.create({
+    name,
+    email,
+    password, 
+    role: role || 'user',
+    shop_info: role === 'shop' ? shopInfo : undefined,
+    tokenVersion: 0
+  });
 
-    user.status = user.status === 'active' ? 'banned' : 'active';
-    await user.save();
-
-    res.json({
+  if (user) {
+    res.status(201).json({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      status: user.status,
     });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } else {
+    res.status(400);
+    throw new Error('Dữ liệu người dùng không hợp lệ');
   }
-};
+});
 
-// @desc    Xóa user (Admin)
-// @route   DELETE /api/admin/users/:id
-// @access  Private (Admin)
-const deleteUser = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: 'User không tồn tại' });
+// @desc    Get user by ID
+// @route   GET /api/admin/users/:id
+exports.getUserById = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id).select('-password');
+  if (user) {
+    res.json(user);
+  } else {
+    res.status(404);
+    throw new Error('User not found');
+  }
+});
+
+// @desc    Update user
+// @route   PUT /api/admin/users/:id
+exports.updateUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+
+  if (user) {
+    user.name = req.body.name || user.name;
+    user.email = req.body.email || user.email;
+    user.role = req.body.role || user.role; 
+
+    if (req.body.role === 'shop' && req.body.shopName) {
+        user.shop_info = {
+            name: req.body.shopName,
+            description: req.body.shopDescription || user.shop_info?.description
+        }
     }
 
-    if (user.role === 'admin') {
-      return res.status(403).json({ message: 'Không thể xóa tài khoản Admin' });
-    }
-
-    await user.deleteOne();
-    res.json({ message: 'Đã xóa user' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// @desc    Lấy danh sách tất cả sellers (shops)
-// @route   GET /api/admin/shops
-// @access  Private (Admin)
-const getAllShops = async (req, res) => {
-  try {
-    const sellers = await User.find({ role: 'shop' })
-      .select('-password')
-      .sort({ createdAt: -1 });
-
-    // Tính thêm thông tin doanh thu cho mỗi shop
-    const shopsWithStats = await Promise.all(
-      sellers.map(async (seller) => {
-        const orders = await Order.find({ shop_id: seller._id, status: 'Delivered' });
-        const totalRevenue = orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
-        return {
-          ...seller.toObject(),
-          totalRevenue,
-          orderCount: orders.length,
-        };
-      })
-    );
-
-    res.json(shopsWithStats);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// @desc    Thống kê tổng quan cho Admin Dashboard (dữ liệu thật từ DB)
-// @route   GET /api/admin/stats
-// @access  Private (Admin)
-const getAdminStats = async (req, res) => {
-  try {
-    const [totalUsers, totalSellers, activeSellers, bannedSellers, totalOrders, ordersForSales, totalProducts] = await Promise.all([
-      User.countDocuments({ role: 'user' }),
-      User.countDocuments({ role: 'shop' }),
-      User.countDocuments({ role: 'shop', status: 'active' }),
-      User.countDocuments({ role: 'shop', status: 'banned' }),
-      Order.countDocuments({}),
-      Order.find({ status: 'Delivered' }).select('totalPrice'),
-      Book.countDocuments({}),
-    ]);
-
-    const totalSales = ordersForSales.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+    const updatedUser = await user.save();
 
     res.json({
-      totalUsers,
-      totalSellers,
-      activeSellers,
-      bannedSellers,
-      totalOrders,
-      totalSales,
-      totalProducts,
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
     });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } else {
+    res.status(404);
+    throw new Error('User not found');
   }
-};
+});
 
-// @desc    Dashboard stats: usersCount, productsCount, ordersCount, totalRevenue
-// @route   GET /api/admin/dashboard
-// @access  Private (Admin)
-const getDashboardStats = async (req, res) => {
-  try {
-    const [usersCount, productsCount, ordersCount, revenueResult] = await Promise.all([
-      User.countDocuments({}),
-      Book.countDocuments({}),
-      Order.countDocuments({}),
-      Order.aggregate([{ $match: { status: 'Delivered' } }, { $group: { _id: null, total: { $sum: '$totalPrice' } } }]),
-    ]);
-    const totalRevenue = revenueResult[0]?.total ?? 0;
-    res.json({ usersCount, productsCount, ordersCount, totalRevenue });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+// @desc    Get admin dashboard stats
+// @route   GET /api/admin/stats
+exports.getDashboardStats = asyncHandler(async (req, res) => {
+  const usersCount = await User.countDocuments();
+  const productsCount = await Product.countDocuments();
+  const ordersCount = await Order.countDocuments();
+  
+  const orders = await Order.find();
+  const totalRevenue = orders.reduce((acc, order) => acc + (order.totalPrice || 0), 0);
 
-module.exports = {
-  getAllUsers,
-  toggleUserStatus,
-  deleteUser,
-  getAllShops,
-  getAdminStats,
-  getDashboardStats,
-};
+  res.json({
+    usersCount,
+    productsCount,
+    ordersCount,
+    totalRevenue
+  });
+});

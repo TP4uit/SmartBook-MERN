@@ -8,6 +8,11 @@ import { Input } from '../ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import api from '../../services/api';
 
+// --- CÁC IMPORT MỚI (Dùng đường dẫn tương đối ../ để không bị lỗi) ---
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../ui/dialog';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+
 interface AdminUsersScreenProps {
   onNavigate: (screen: string) => void;
 }
@@ -27,6 +32,17 @@ export function AdminUsersScreen({ onNavigate }: AdminUsersScreenProps) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // --- STATE MỚI CHO FORM THÊM USER ---
+  const [open, setOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'user',
+    shopName: '',
+  });
 
   useEffect(() => {
     fetchUsers();
@@ -72,6 +88,34 @@ export function AdminUsersScreen({ onNavigate }: AdminUsersScreenProps) {
     }
   };
 
+  // --- HÀM XỬ LÝ TẠO MỚI (MỚI) ---
+  const handleCreateUser = async () => {
+    // Validate cơ bản
+    if (!formData.name || !formData.email || !formData.password) {
+      alert('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+    if (formData.role === 'shop' && !formData.shopName) {
+      alert('Vui lòng nhập tên cửa hàng');
+      return;
+    }
+
+    setCreateLoading(true);
+    try {
+      // Gọi trực tiếp api.post để tránh phụ thuộc vào file api.ts nếu chưa cập nhật
+      await api.post('/admin/users', formData);
+      alert('Tạo tài khoản thành công!');
+      setOpen(false); // Đóng modal
+      setFormData({ name: '', email: '', password: '', role: 'user', shopName: '' }); // Reset form
+      fetchUsers(); // Load lại danh sách
+    } catch (err: any) {
+      console.error('Create user error:', err);
+      alert(err.response?.data?.message || 'Tạo thất bại');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
   const filteredUsers = users.filter(
     (u) =>
       u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,6 +136,7 @@ export function AdminUsersScreen({ onNavigate }: AdminUsersScreenProps) {
   const getRoleLabel = (role: string) => {
     if (role === 'admin') return 'Admin';
     if (role === 'seller') return 'Seller';
+    if (role === 'shop') return 'Shop'; // Bổ sung label cho shop
     return 'Buyer';
   };
 
@@ -107,7 +152,63 @@ export function AdminUsersScreen({ onNavigate }: AdminUsersScreenProps) {
                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                  <Input className="pl-9 bg-white" placeholder="Tìm kiếm user..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
-              <Button>Thêm mới</Button>
+
+              {/* --- THAY ĐỔI DUY NHẤT Ở UI: BỌC NÚT THÊM MỚI VÀO DIALOG --- */}
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button>Thêm mới</Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Thêm người dùng mới</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="name" className="text-right">Tên</Label>
+                      <Input id="name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="col-span-3" placeholder="Nguyễn Văn A" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="email" className="text-right">Email</Label>
+                      <Input id="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="col-span-3" placeholder="email@example.com" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="password" className="text-right">Mật khẩu</Label>
+                      <Input id="password" type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="col-span-3" placeholder="******" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="role" className="text-right">Vai trò</Label>
+                      <div className="col-span-3">
+                        <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Chọn vai trò" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="user">Người dùng (Buyer)</SelectItem>
+                            <SelectItem value="shop">Cửa hàng (Seller)</SelectItem>
+                            <SelectItem value="admin">Quản trị viên (Admin)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    {/* Nếu chọn Shop thì hiện thêm ô nhập tên Shop */}
+                    {formData.role === 'shop' && (
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="shopName" className="text-right">Tên Shop</Label>
+                        <Input id="shopName" value={formData.shopName} onChange={(e) => setFormData({...formData, shopName: e.target.value})} className="col-span-3" placeholder="Nhập tên shop..." />
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" onClick={handleCreateUser} disabled={createLoading}>
+                      {createLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Tạo tài khoản
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              {/* ----------------------------------------------------------- */}
+
            </div>
         </div>
 
@@ -151,9 +252,9 @@ export function AdminUsersScreen({ onNavigate }: AdminUsersScreenProps) {
                       </td>
                       <td className="px-6 py-4 text-slate-500">{user.email}</td>
                       <td className="px-6 py-4">
-                         <Badge variant="outline" className={getRoleBadge(user.role)}>
-                           {getRoleLabel(user.role)}
-                         </Badge>
+                          <Badge variant="outline" className={getRoleBadge(user.role)}>
+                            {getRoleLabel(user.role)}
+                          </Badge>
                       </td>
                       <td className="px-6 py-4 text-slate-500">{formatDate(user.createdAt)}</td>
                       <td className="px-6 py-4">
@@ -168,27 +269,27 @@ export function AdminUsersScreen({ onNavigate }: AdminUsersScreenProps) {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                               <Button size="icon" variant="ghost" className="h-8 w-8" disabled={actionLoading === user._id}>
-                                  {actionLoading === user._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
-                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                               <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-                               <DropdownMenuItem className="gap-2"><Eye className="h-4 w-4" /> Xem chi tiết</DropdownMenuItem>
-                               {user.role !== 'admin' && (
-                                 <>
-                                   {user.status === 'active' ? (
-                                      <DropdownMenuItem className="gap-2 text-red-600" onClick={() => handleToggleStatus(user._id)}><Lock className="h-4 w-4" /> Khóa tài khoản</DropdownMenuItem>
-                                   ) : (
-                                      <DropdownMenuItem className="gap-2 text-green-600" onClick={() => handleToggleStatus(user._id)}><Unlock className="h-4 w-4" /> Mở khóa</DropdownMenuItem>
-                                   )}
-                                   <DropdownMenuItem className="gap-2 text-red-600" onClick={() => handleDeleteUser(user._id)}><Trash2 className="h-4 w-4" /> Xóa vĩnh viễn</DropdownMenuItem>
-                                 </>
-                               )}
-                            </DropdownMenuContent>
-                         </DropdownMenu>
+                          <DropdownMenu>
+                             <DropdownMenuTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-8 w-8" disabled={actionLoading === user._id}>
+                                   {actionLoading === user._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
+                                </Button>
+                             </DropdownMenuTrigger>
+                             <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Hành động</DropdownMenuLabel>
+                                <DropdownMenuItem className="gap-2"><Eye className="h-4 w-4" /> Xem chi tiết</DropdownMenuItem>
+                                {user.role !== 'admin' && (
+                                   <>
+                                      {user.status === 'active' ? (
+                                         <DropdownMenuItem className="gap-2 text-red-600" onClick={() => handleToggleStatus(user._id)}><Lock className="h-4 w-4" /> Khóa tài khoản</DropdownMenuItem>
+                                      ) : (
+                                         <DropdownMenuItem className="gap-2 text-green-600" onClick={() => handleToggleStatus(user._id)}><Unlock className="h-4 w-4" /> Mở khóa</DropdownMenuItem>
+                                      )}
+                                       <DropdownMenuItem className="gap-2 text-red-600" onClick={() => handleDeleteUser(user._id)}><Trash2 className="h-4 w-4" /> Xóa vĩnh viễn</DropdownMenuItem>
+                                   </>
+                                )}
+                             </DropdownMenuContent>
+                          </DropdownMenu>
                       </td>
                     </tr>
                   ))

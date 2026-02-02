@@ -1,34 +1,25 @@
 const asyncHandler = require('express-async-handler');
-const User = require('../models/User.js');
-const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const generateToken = require('../utils/generateToken');
 
-// Hàm tạo token
-const generateToken = (id, tokenVersion) => {
-  return jwt.sign({ id, tokenVersion }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
-  });
-};
+// --- CÁCH VIẾT MỚI: Export trực tiếp ---
 
-// @desc    Auth user & get token
-// @route   POST /api/users/login
-// @access  Public
-const loginUser = asyncHandler(async (req, res) => {
+// @desc    Auth user & get token (Đăng nhập)
+// @route   POST /api/auth/login
+exports.authUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   const user = await User.findOne({ email });
 
   if (user && (await user.matchPassword(password))) {
-    // === SINGLE SESSION LOGIC ===
-    // Tăng version lên để vô hiệu hóa các token cũ
     user.tokenVersion = (user.tokenVersion || 0) + 1;
-    await user.save(); 
+    await user.save();
 
     res.json({
       _id: user._id,
       name: user.name,
       email: user.email,
-      isAdmin: user.isAdmin,
-      role: user.role, 
+      role: user.role,
       token: generateToken(user._id, user.tokenVersion),
     });
   } else {
@@ -37,24 +28,22 @@ const loginUser = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Register a new user
-// @route   POST /api/users
-// @access  Public
-const registerUser = asyncHandler(async (req, res) => {
+// @desc    Register a new user (Đăng ký)
+// @route   POST /api/auth/register
+exports.registerUser = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
 
   const userExists = await User.findOne({ email });
 
   if (userExists) {
     res.status(400);
-    throw new Error('Người dùng đã tồn tại');
+    throw new Error('Email này đã được sử dụng');
   }
 
   const user = await User.create({
     name,
     email,
     password,
-    role: 'user',
     tokenVersion: 0
   });
 
@@ -63,20 +52,18 @@ const registerUser = asyncHandler(async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      isAdmin: user.isAdmin,
       role: user.role,
       token: generateToken(user._id, user.tokenVersion),
     });
   } else {
     res.status(400);
-    throw new Error('Dữ liệu người dùng không hợp lệ');
+    throw new Error('Dữ liệu không hợp lệ');
   }
 });
 
 // @desc    Get user profile
-// @route   GET /api/users/profile
-// @access  Private
-const getUserProfile = asyncHandler(async (req, res) => {
+// @route   GET /api/auth/profile
+exports.getUserProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
 
   if (user) {
@@ -84,24 +71,28 @@ const getUserProfile = asyncHandler(async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      isAdmin: user.isAdmin,
       role: user.role,
+      phone: user.phone || '',
+      address: user.address || '',
+      shop_info: user.shop_info || {}
     });
   } else {
     res.status(404);
-    throw new Error('User not found');
+    throw new Error('Không tìm thấy người dùng');
   }
 });
 
 // @desc    Update user profile
-// @route   PUT /api/users/profile
-// @access  Private
-const updateUserProfile = asyncHandler(async (req, res) => {
+// @route   PUT /api/auth/profile
+exports.updateUserProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
 
   if (user) {
     user.name = req.body.name || user.name;
     user.email = req.body.email || user.email;
+    user.phone = req.body.phone || user.phone;
+    user.address = req.body.address || user.address;
+    
     if (req.body.password) {
       user.password = req.body.password;
     }
@@ -112,19 +103,11 @@ const updateUserProfile = asyncHandler(async (req, res) => {
       _id: updatedUser._id,
       name: updatedUser.name,
       email: updatedUser.email,
-      isAdmin: updatedUser.isAdmin,
       role: updatedUser.role,
-      token: generateToken(updatedUser._id, user.tokenVersion),
+      token: generateToken(updatedUser._id, updatedUser.tokenVersion),
     });
   } else {
     res.status(404);
-    throw new Error('User not found');
+    throw new Error('Không tìm thấy người dùng');
   }
 });
-
-module.exports = {
-  loginUser,
-  registerUser,
-  getUserProfile,
-  updateUserProfile,
-};
