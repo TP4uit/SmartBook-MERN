@@ -6,6 +6,7 @@ const {
   deleteUser,
   getAllShops,
   getAdminStats,
+  getDashboardStats,
 } = require('../controllers/adminController');
 const { protect, admin } = require('../middleware/authMiddleware');
 
@@ -22,5 +23,6 @@ router.route('/shops').get(getAllShops);
 
 // Stats
 router.route('/stats').get(getAdminStats);
+router.route('/dashboard').get(getDashboardStats);
 
 module.exports = router;

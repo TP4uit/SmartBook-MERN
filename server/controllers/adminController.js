@@ -126,10 +126,29 @@ const getAdminStats = async (req, res) => {
   }
 };
 
+// @desc    Dashboard stats: usersCount, productsCount, ordersCount, totalRevenue
+// @route   GET /api/admin/dashboard
+// @access  Private (Admin)
+const getDashboardStats = async (req, res) => {
+  try {
+    const [usersCount, productsCount, ordersCount, revenueResult] = await Promise.all([
+      User.countDocuments({}),
+      Book.countDocuments({}),
+      Order.countDocuments({}),
+      Order.aggregate([{ $match: { status: 'Delivered' } }, { $group: { _id: null, total: { $sum: '$totalPrice' } } }]),
+    ]);
+    const totalRevenue = revenueResult[0]?.total ?? 0;
+    res.json({ usersCount, productsCount, ordersCount, totalRevenue });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getAllUsers,
   toggleUserStatus,
   deleteUser,
   getAllShops,
   getAdminStats,
+  getDashboardStats,
 };

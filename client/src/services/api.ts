@@ -35,4 +35,29 @@ api.interceptors.response.use(
   }
 );
 
+// --- API helpers (URLs khớp server routes) ---
+export function getSellerOrders() {
+  return api.get('/orders/seller/orders');
+}
+
+export function getAdminStats() {
+  return api.get('/admin/stats');
+}
+
+export function getDashboardStats() {
+  return api.get('/admin/dashboard');
+}
+
+export function getMyOrders() {
+  return api.get('/orders/myorders');
+}
+
+export function createOrder(orderData: {
+  orderItems: Array<{ product: string; name: string; qty: number; price: number; image?: string; shop?: string }>;
+  shippingAddress: { address: string; city?: string; postalCode?: string; country?: string };
+  paymentMethod?: string;
+}) {
+  return api.post('/orders', orderData);
+}
+
 export default api;

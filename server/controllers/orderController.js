@@ -3,7 +3,7 @@ const Order = require('../models/Order');
 const Book = require('../models/Book');
 const { v4: uuidv4 } = require('uuid');
 
-// @desc    Tạo đơn hàng mới (Hỗ trợ Tách đơn & Transaction)
+// @desc    Tạo đơn hàng mới (Tách đơn theo shop: một Order document cho mỗi shop)
 // @route   POST /api/orders
 // @access  Private
 const addOrderItems = async (req, res) => {
@@ -11,18 +11,11 @@ const addOrderItems = async (req, res) => {
   session.startTransaction();
 
   try {
-    const {
-      orderItems,
-      shippingAddress,
-      paymentMethod,
-    } = req.body;
+    const { orderItems, shippingAddress, paymentMethod } = req.body;
 
-    if (!orderItems || orderItems.length === 0) {
+    if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
       return res.status(400).json({ message: 'Giỏ hàng trống' });
     }
-
-    // Mã giao dịch chung cho các đơn hàng được tách
-    const transactionRef = `TRANS_${uuidv4()}`; 
 
     if (!shippingAddress || typeof shippingAddress !== 'object') {
       return res.status(400).json({ message: 'Thiếu địa chỉ giao hàng' });
@@ -38,27 +31,39 @@ const addOrderItems = async (req, res) => {
       country: country != null ? String(country) : 'Việt Nam',
     };
 
-    // Gom nhóm item theo shop
-    const itemsByShop = orderItems.reduce((acc, item) => {
-      const shopId = item.shop;
-      if (!shopId) return acc;
-      if (!acc[shopId]) acc[shopId] = [];
+    const transactionRef = `TRANS_${uuidv4()}`;
+
+    // Resolve shop_id for each item: use item.shop or look up Book.shop_id
+    const productIds = [...new Set(orderItems.map((item) => item.product || item.book).filter(Boolean))];
+    const books = await Book.find({ _id: { $in: productIds } }).select('_id shop_id').session(session).lean();
+    const productToShop = {};
+    for (const b of books) {
+      productToShop[b._id.toString()] = b.shop_id;
+    }
+
+    const itemsByShop = {};
+    for (const item of orderItems) {
       const productId = item.product || item.book;
-      if (!productId || !item.name || item.qty == null || item.price == null) return acc;
-      acc[shopId].push({
+      if (!productId || item.name == null || item.qty == null || item.price == null) continue;
+      let shopId = item.shop;
+      if (!shopId && productToShop[productId.toString()]) {
+        shopId = productToShop[productId.toString()];
+      }
+      if (!shopId) continue;
+      const shopKey = shopId.toString ? shopId.toString() : String(shopId);
+      if (!itemsByShop[shopKey]) itemsByShop[shopKey] = [];
+      itemsByShop[shopKey].push({
         name: String(item.name),
         qty: Number(item.qty),
         image: item.image && String(item.image).trim() ? String(item.image) : 'https://via.placeholder.com/150',
         price: Number(item.price),
         product: productId,
       });
-      return acc;
-    }, {});
+    }
 
     const createdOrders = [];
-
-    for (const shopId of Object.keys(itemsByShop)) {
-      const shopItems = itemsByShop[shopId];
+    for (const shopKey of Object.keys(itemsByShop)) {
+      const shopItems = itemsByShop[shopKey];
       if (!shopItems.length) continue;
 
       const itemsPrice = shopItems.reduce((acc, item) => acc + item.price * item.qty, 0);
@@ -67,7 +72,7 @@ const addOrderItems = async (req, res) => {
 
       const order = new Order({
         user: req.user._id,
-        shop_id: shopId,
+        shop_id: shopKey,
         transaction_ref: transactionRef,
         orderItems: shopItems,
         shippingAddress: normalizedShipping,
@@ -90,19 +95,26 @@ const addOrderItems = async (req, res) => {
       }
     }
 
+    if (createdOrders.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Không thể xác định shop cho sản phẩm. Kiểm tra lại giỏ hàng.' });
+    }
+
     await session.commitTransaction();
     session.endSession();
 
-    res.status(201).json({ 
-      message: 'Đặt hàng thành công', 
+    res.status(201).json({
+      message: 'Đặt hàng thành công',
       orders: createdOrders,
-      transactionRef 
+      transactionRef,
     });
-
   } catch (error) {
-    await session.abortTransaction();
+    try {
+      await session.abortTransaction();
+    } catch (_) {}
     session.endSession();
-    console.error('Transaction Error:', error);
+    console.error('Order Error:', error);
     res.status(500).json({ message: error.message || 'Lỗi tạo đơn hàng' });
   }
 };

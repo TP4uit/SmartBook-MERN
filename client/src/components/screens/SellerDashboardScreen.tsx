@@ -3,7 +3,7 @@ import { SellerSidebar } from '../layout/SellerSidebar';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { LayoutDashboard, Package, ShoppingCart, TrendingUp, Clock, CheckCircle, Loader2 } from 'lucide-react';
-import api from '../../services/api';
+import api, { getSellerOrders } from '../../services/api';
 
 interface SellerDashboardScreenProps {
   onNavigate: (screen: string) => void;
@@ -30,7 +30,7 @@ export function SellerDashboardScreen({ onNavigate }: SellerDashboardScreenProps
   const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
 
   useEffect(() => {
-    api.get<Order[]>('/orders/seller/orders')
+    getSellerOrders()
       .then(({ data }) => setOrders(Array.isArray(data) ? data : []))
       .catch(() => setOrders([]))
       .finally(() => setLoading(false));

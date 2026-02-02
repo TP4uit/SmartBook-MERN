@@ -4,7 +4,7 @@ import { Footer } from '../layout/Footer';
 import { ProfileSidebar } from '../layout/ProfileSidebar';
 import { Button } from '../ui/button';
 import { Store, Truck, MessageCircle, Loader2 } from 'lucide-react';
-import api from '../../services/api';
+import api, { getMyOrders } from '../../services/api';
 
 interface OrderHistoryScreenProps {
   onNavigate: (screen: string) => void;
@@ -53,7 +53,7 @@ export function OrderHistoryScreen({ onNavigate }: OrderHistoryScreenProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<Order[]>('/orders/myorders')
+    getMyOrders()
       .then(({ data }) => setOrders(Array.isArray(data) ? data : []))
       .catch(() => setOrders([]))
       .finally(() => setLoading(false));

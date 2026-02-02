@@ -17,7 +17,7 @@ function buildMatchFilter(req) {
   return match;
 }
 
-// @desc    Lấy tất cả sách (Vector Search khi có keyword, lọc category/price/shopId, phân trang)
+// @desc    Lấy tất cả sách (Regex search trên title/description, lọc category/price/shopId, phân trang)
 // @route   GET /api/products
 // @access  Public
 const getProducts = async (req, res) => {
@@ -27,80 +27,15 @@ const getProducts = async (req, res) => {
     const keyword = (req.query.keyword || '').trim();
     const matchFilter = buildMatchFilter(req);
 
-    // Có keyword -> thử Vector Search, fallback regex
+    let query = { ...matchFilter };
     if (keyword) {
-      let queryVector = [];
-      try {
-        queryVector = await generateEmbedding(keyword);
-      } catch (e) {
-        console.warn('Embedding keyword failed, fallback regex:', e.message);
-      }
-
-      const hasVector = Array.isArray(queryVector) && queryVector.length > 0;
-      if (hasVector) {
-        try {
-          const pipeline = [
-            {
-              $vectorSearch: {
-                index: 'vector_index',
-                path: 'embedding_vector',
-                queryVector,
-                numCandidates: 100,
-                limit: 200,
-              },
-            },
-            { $match: Object.keys(matchFilter).length ? matchFilter : { _id: { $exists: true } } },
-            {
-              $facet: {
-                totalResult: [{ $count: 'total' }],
-                items: [
-                  { $skip: pageSize * (page - 1) },
-                  { $limit: pageSize },
-                  {
-                    $lookup: {
-                      from: 'users',
-                      localField: 'shop_id',
-                      foreignField: '_id',
-                      as: 'shop_id_doc',
-                      pipeline: [{ $project: { name: 1, email: 1, shop_info: 1, password: 0 } }],
-                    },
-                  },
-                  { $set: { shop_id: { $arrayElemAt: ['$shop_id_doc', 0] } } },
-                  { $project: { shop_id_doc: 0, embedding_vector: 0 } },
-                ],
-              },
-            },
-          ];
-          const result = await Book.aggregate(pipeline);
-          const total = result[0]?.totalResult?.[0]?.total ?? 0;
-          const books = result[0]?.items ?? [];
-          return res.json({ books, page, pages: Math.ceil(total / pageSize) || 1, total });
-        } catch (vectorErr) {
-          console.warn('Vector search failed, fallback to regex:', vectorErr.message);
-        }
-      }
-
-      // Fallback: tìm kiếm regex
-      const query = {
-        $or: [
-          { title: { $regex: keyword, $options: 'i' } },
-          { description: { $regex: keyword, $options: 'i' } },
-          { author: { $regex: keyword, $options: 'i' } },
-        ],
-        ...matchFilter,
-      };
-      const count = await Book.countDocuments(query);
-      const books = await Book.find(query)
-        .select('-embedding_vector')
-        .populate('shop_id', 'name email shop_info')
-        .limit(pageSize)
-        .skip(pageSize * (page - 1))
-        .sort({ createdAt: -1 });
-      return res.json({ books, page, pages: Math.ceil(count / pageSize) || 1, total: count });
+      query.$or = [
+        { title: { $regex: keyword, $options: 'i' } },
+        { description: { $regex: keyword, $options: 'i' } },
+        { author: { $regex: keyword, $options: 'i' } },
+      ];
     }
 
-    // Không có keyword: list phân trang + bộ lọc
-    const query = matchFilter;
     const count = await Book.countDocuments(query);
     const books = await Book.find(query)
       .select('-embedding_vector')

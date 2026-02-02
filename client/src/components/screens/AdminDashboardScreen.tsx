@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Users, Store, DollarSign, ShoppingCart, Lock, Unlock, Loader2 } from 'lucide-react';
-import api from '../../services/api';
+import api, { getAdminStats } from '../../services/api';
 
 interface AdminDashboardScreenProps {
   onNavigate: (screen: string) => void;
@@ -45,7 +45,7 @@ export function AdminDashboardScreen({ onNavigate }: AdminDashboardScreenProps) 
   const [loadingShops, setLoadingShops] = useState(true);
 
   useEffect(() => {
-    api.get<Stats>('/admin/stats')
+    getAdminStats()
       .then(({ data }) => setStats(data))
       .catch(() => setStats(null))
       .finally(() => setLoading(false));
@@ -103,7 +103,7 @@ export function AdminDashboardScreen({ onNavigate }: AdminDashboardScreenProps) 
                 <div>
                   <p className="text-sm font-medium text-gray-500">Doanh thu sàn</p>
                   <h3 className="text-2xl font-bold">
-                    {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : (stats ? formatMoney(stats.totalSales)) : '—'}
+                    {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : (stats ? formatMoney(stats.totalSales) : '—')}
                   </h3>
                 </div>
               </CardContent>
