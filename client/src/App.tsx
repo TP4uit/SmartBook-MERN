@@ -52,32 +52,49 @@ function useNavigateHandler() {
   };
 }
 
+// --- PROTECTED ROUTES LOGIC ---
+
+// Chỉ yêu cầu đăng nhập
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');
   if (!token) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
+// Yêu cầu Role là Shop hoặc Admin
 function SellerRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');
-  if (!token) return <Navigate to="/login" replace />;
-  let role = '';
-  try {
-    role = JSON.parse(localStorage.getItem('userInfo') || '{}').role || '';
-  } catch {}
-  if (role !== 'shop' && role !== 'admin') return <Navigate to="/home" replace />;
-  return <>{children}</>;
+  const userInfoStr = localStorage.getItem('userInfo');
+  
+  if (!token || !userInfoStr) return <Navigate to="/login" replace />;
+  
+  const userInfo = JSON.parse(userInfoStr);
+  const role = userInfo.role || 'user';
+
+  // Admin được quyền vào xem Dashboard của Seller để kiểm tra
+  if (role === 'shop' || role === 'admin') {
+    return <>{children}</>;
+  }
+
+  // Nếu là user thường -> Về Home
+  return <Navigate to="/home" replace />;
 }
 
+// Yêu cầu Role là Admin
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');
-  if (!token) return <Navigate to="/login" replace />;
-  let role = '';
-  try {
-    role = JSON.parse(localStorage.getItem('userInfo') || '{}').role || '';
-  } catch {}
-  if (role !== 'admin') return <Navigate to="/home" replace />;
-  return <>{children}</>;
+  const userInfoStr = localStorage.getItem('userInfo');
+
+  if (!token || !userInfoStr) return <Navigate to="/login" replace />;
+
+  const userInfo = JSON.parse(userInfoStr);
+  const role = userInfo.role || 'user';
+
+  if (role === 'admin') {
+    return <>{children}</>;
+  }
+
+  return <Navigate to="/home" replace />;
 }
 
 function ProductDetailRoute() {
@@ -107,6 +124,8 @@ export default function App() {
   const location = window.location.pathname;
 
   const onNavigate = useNavigateHandler();
+  const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+  const userRole = userInfo.role;
 
   return (
     <div className="min-h-screen bg-[#F5F5DC] font-sans text-slate-900 relative">
@@ -134,16 +153,26 @@ export default function App() {
               <NavButton to="/address-book" active={location === '/address-book'}>Sổ địa chỉ</NavButton>
               <NavButton to="/order-history" active={location === '/order-history'}>Đơn mua</NavButton>
 
-              <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Seller Portal</div>
-              <NavButton to="/seller/dashboard" active={location === '/seller/dashboard'}>Dashboard Người bán</NavButton>
-              <NavButton to="/seller/add-product" active={location === '/seller/add-product'}>Đăng bán sách</NavButton>
-              <NavButton to="/seller/orders" active={location === '/seller/orders'}>Quản lý đơn hàng</NavButton>
-              <NavButton to="/seller/finance" active={location === '/seller/finance'}>Tài chính & Rút tiền</NavButton>
+              {/* Chỉ hiện menu Seller nếu là Shop hoặc Admin */}
+              {(userRole === 'shop' || userRole === 'admin') && (
+                <>
+                  <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Seller Portal</div>
+                  <NavButton to="/seller/dashboard" active={location === '/seller/dashboard'}>Dashboard Người bán</NavButton>
+                  <NavButton to="/seller/add-product" active={location === '/seller/add-product'}>Đăng bán sách</NavButton>
+                  <NavButton to="/seller/orders" active={location === '/seller/orders'}>Quản lý đơn hàng</NavButton>
+                  <NavButton to="/seller/finance" active={location === '/seller/finance'}>Tài chính & Rút tiền</NavButton>
+                </>
+              )}
 
-              <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Admin</div>
-              <NavButton to="/admin/dashboard" active={location === '/admin/dashboard'}>Tổng quan</NavButton>
-              <NavButton to="/admin/shops" active={location === '/admin/shops'}>Quản lý Shop</NavButton>
-              <NavButton to="/admin/users" active={location === '/admin/users'}>Quản lý User</NavButton>
+              {/* Chỉ hiện menu Admin nếu là Admin */}
+              {userRole === 'admin' && (
+                <>
+                  <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Admin</div>
+                  <NavButton to="/admin/dashboard" active={location === '/admin/dashboard'}>Tổng quan</NavButton>
+                  <NavButton to="/admin/shops" active={location === '/admin/shops'}>Quản lý Shop</NavButton>
+                  <NavButton to="/admin/users" active={location === '/admin/users'}>Quản lý User</NavButton>
+                </>
+              )}
             </div>
           )}
         </div>

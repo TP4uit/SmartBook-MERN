@@ -13,7 +13,8 @@ export interface UserData {
 }
 
 // 2. Cấu hình Axios
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// FIX LỖI Ở ĐÂY: Dùng (import.meta as any) để TypeScript không bắt bẻ nữa
+const API_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -95,7 +96,7 @@ export function getSellerOrders() {
   return api.get('/orders/seller/orders');
 }
 
-// Lưu ý: Backend adminRoutes tôi setup là /stats, nhưng nếu code cũ bạn gọi dashboard thì giữ wrapper này
+// Wrapper cho Dashboard Stats
 export function getDashboardStats() {
   return api.get('/admin/stats'); 
 }

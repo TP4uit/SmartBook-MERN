@@ -25,20 +25,29 @@ export function LoginScreen({ onNavigateRegister }: LoginScreenProps) {
     try {
       const { data } = await api.post('/auth/login', { email, password });
 
+      // Lưu token và user info
       localStorage.setItem('token', data.token);
-      localStorage.setItem('userInfo', JSON.stringify({ ...data.user, token: data.token }));
+      localStorage.setItem('userInfo', JSON.stringify({ ...data, token: data.token }));
+      
+      // Lấy role từ data trả về (ưu tiên data.role, sau đó đến data.user.role)
+      // Cần đảm bảo backend trả về đúng cấu trúc.
+      // Theo code backend authController: res.json({ _id, name, email, role, token })
+      const role = data.role || data.user?.role || 'user';
 
-      const role = data.user?.role ?? data.role ?? 'user';
+      console.log('Login Success. Role:', role); // Debug log
+
+      // ĐIỀU HƯỚNG DỰA TRÊN ROLE
       if (role === 'admin') {
-        navigate('/admin/dashboard');
+        window.location.href = '/admin/dashboard'; // Dùng window.location để force reload sạch sẽ
       } else if (role === 'shop') {
-        navigate('/seller/dashboard');
+        window.location.href = '/seller/dashboard';
       } else {
-        navigate('/home');
+        window.location.href = '/home';
       }
-    } catch (err: unknown) {
+
+    } catch (err: any) {
       console.error(err);
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      const msg = err.response?.data?.message || err.message;
       setError(msg || 'Đăng nhập thất bại. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
@@ -47,7 +56,7 @@ export function LoginScreen({ onNavigateRegister }: LoginScreenProps) {
 
   return (
     <div className="flex min-h-screen w-full bg-white">
-      {/* Left: Inspiring Image (Giữ nguyên UI cũ) */}
+      {/* Left: Inspiring Image */}
       <div className="hidden lg:block w-1/2 relative overflow-hidden">
         <div className="absolute inset-0 bg-[#008080]/20 mix-blend-multiply z-10" />
         <img 
