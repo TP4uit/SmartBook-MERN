@@ -2,8 +2,6 @@ const asyncHandler = require('express-async-handler');
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 
-// --- CÁCH VIẾT MỚI: Export trực tiếp ---
-
 // @desc    Auth user & get token (Đăng nhập)
 // @route   POST /api/auth/login
 exports.authUser = asyncHandler(async (req, res) => {
@@ -12,6 +10,7 @@ exports.authUser = asyncHandler(async (req, res) => {
   const user = await User.findOne({ email });
 
   if (user && (await user.matchPassword(password))) {
+    // Tăng version token để invalidate các session cũ (nếu cần bảo mật cao)
     user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
 
@@ -20,6 +19,7 @@ exports.authUser = asyncHandler(async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      shop_info: user.shop_info, // Trả về shop_info để frontend check
       token: generateToken(user._id, user.tokenVersion),
     });
   } else {
@@ -44,6 +44,7 @@ exports.registerUser = asyncHandler(async (req, res) => {
     name,
     email,
     password,
+    role: 'user', // Mặc định là user
     tokenVersion: 0
   });
 
@@ -82,12 +83,13 @@ exports.getUserProfile = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Update user profile
+// @desc    Update user profile & Register Shop
 // @route   PUT /api/auth/profile
 exports.updateUserProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
 
   if (user) {
+    // 1. Cập nhật thông tin cá nhân cơ bản
     user.name = req.body.name || user.name;
     user.email = req.body.email || user.email;
     user.phone = req.body.phone || user.phone;
@@ -97,6 +99,21 @@ exports.updateUserProfile = asyncHandler(async (req, res) => {
       user.password = req.body.password;
     }
 
+    // 2. LOGIC MỚI: Cập nhật thông tin Shop & Nâng cấp Role
+    // Nếu request có gửi shop_name hoặc shop_address -> User muốn bán hàng
+    if (req.body.shop_name || req.body.shop_address) {
+      user.shop_info = {
+        shop_name: req.body.shop_name || user.shop_info?.shop_name,
+        shop_address: req.body.shop_address || user.shop_info?.shop_address,
+        shop_avatar: req.body.shop_avatar || user.shop_info?.shop_avatar,
+      };
+
+      // Tự động nâng role lên 'seller' nếu chưa phải
+      if (user.role === 'user') {
+        user.role = 'seller';
+      }
+    }
+
     const updatedUser = await user.save();
 
     res.json({
@@ -104,6 +121,7 @@ exports.updateUserProfile = asyncHandler(async (req, res) => {
       name: updatedUser.name,
       email: updatedUser.email,
       role: updatedUser.role,
+      shop_info: updatedUser.shop_info,
       token: generateToken(updatedUser._id, updatedUser.tokenVersion),
     });
   } else {

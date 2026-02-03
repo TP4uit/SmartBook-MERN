@@ -3,7 +3,7 @@ const Order = require('../models/Order');
 const Book = require('../models/Book');
 const { v4: uuidv4 } = require('uuid');
 
-// @desc    Tạo đơn hàng mới (Tách đơn theo shop: một Order document cho mỗi shop)
+// @desc    Tạo đơn hàng mới (Tách đơn theo shop & Bảo mật giá)
 // @route   POST /api/orders
 // @access  Private
 const addOrderItems = async (req, res) => {
@@ -20,6 +20,8 @@ const addOrderItems = async (req, res) => {
     if (!shippingAddress || typeof shippingAddress !== 'object') {
       return res.status(400).json({ message: 'Thiếu địa chỉ giao hàng' });
     }
+
+    // Chuẩn hóa địa chỉ
     const normalizedShipping = {
       address: String(shippingAddress.address),
       city: String(shippingAddress.city || ''),
@@ -29,55 +31,67 @@ const addOrderItems = async (req, res) => {
 
     const transactionRef = `TRANS_${uuidv4()}`;
 
-    // 1. Lấy thông tin Shop ID chuẩn từ DB
+    // 1. Lấy danh sách ID sản phẩm từ giỏ hàng
     const productIds = [...new Set(orderItems.map((item) => item.product || item.book).filter(Boolean))];
-    const books = await Book.find({ _id: { $in: productIds } }).select('_id shop_id').session(session).lean();
     
-    const productToShop = {};
+    // 2. Fetch dữ liệu sách từ DB để lấy Giá chuẩn và Shop ID (Bảo mật)
+    const books = await Book.find({ _id: { $in: productIds } })
+      .select('_id shop_id price countInStock title image') // Lấy cả image để fallback
+      .session(session);
+    
+    // Map nhanh dữ liệu từ DB
+    const dbBooksMap = {};
     for (const b of books) {
-      productToShop[b._id.toString()] = b.shop_id;
+      dbBooksMap[b._id.toString()] = b;
     }
 
-    // 2. Gom nhóm sản phẩm theo Shop
+    // 3. Gom nhóm sản phẩm theo Shop (Dùng dữ liệu DB làm chuẩn)
     const itemsByShop = {};
+
     for (const item of orderItems) {
       const productId = item.product || item.book;
       if (!productId) continue;
 
-      let shopId = item.shop;
-      // Fallback: Nếu frontend thiếu shopId, lấy từ DB
-      if (!shopId && productToShop[productId.toString()]) {
-        shopId = productToShop[productId.toString()];
+      const dbBook = dbBooksMap[productId.toString()];
+      if (!dbBook) {
+        throw new Error(`Sản phẩm không tồn tại hoặc đã bị xóa: ${productId}`);
       }
-      if (!shopId) continue;
 
-      const shopKey = shopId.toString();
+      // Kiểm tra tồn kho ngay lập tức
+      if (dbBook.countInStock < item.qty) {
+        throw new Error(`Sách "${dbBook.title}" tạm hết hàng (Kho còn: ${dbBook.countInStock})`);
+      }
+
+      const shopKey = dbBook.shop_id.toString();
       if (!itemsByShop[shopKey]) itemsByShop[shopKey] = [];
       
+      // Đẩy vào mảng của Shop tương ứng
+      // QUAN TRỌNG: Sử dụng dbBook.price thay vì item.price từ frontend để tránh hack giá
       itemsByShop[shopKey].push({
-        name: String(item.name),
+        name: dbBook.title,
         qty: Number(item.qty),
-        image: String(item.image || ''),
-        price: Number(item.price),
-        product: productId,
+        image: item.image || dbBook.image, // Ưu tiên ảnh frontend gửi (nếu có logic chọn variant) hoặc ảnh gốc
+        price: Number(dbBook.price),      // Lấy giá từ DB
+        product: dbBook._id,
       });
     }
 
     const createdOrders = [];
 
-    // 3. Tạo Order cho từng Shop
+    // 4. Tạo Order document cho từng Shop
     for (const shopKey of Object.keys(itemsByShop)) {
       const shopItems = itemsByShop[shopKey];
       if (!shopItems.length) continue;
 
+      // Tính tổng tiền dựa trên giá DB
       const itemsPrice = shopItems.reduce((acc, item) => acc + item.price * item.qty, 0);
-      const shippingPrice = 30000;
+      const shippingPrice = 30000; // Phí ship cố định hoặc logic dynamic sau này
       const totalPrice = itemsPrice + shippingPrice;
 
       const order = new Order({
         user: req.user._id,
-        shop: shopKey,
-        shop_id: shopKey,
+        shop: shopKey,      // Reference User model (Seller)
+        shop_id: shopKey,   // Reference User model (Seller) - Backup field
         transaction_ref: transactionRef,
         orderItems: shopItems,
         shippingAddress: normalizedShipping,
@@ -90,20 +104,10 @@ const addOrderItems = async (req, res) => {
       const savedOrder = await order.save({ session });
       createdOrders.push(savedOrder);
 
-      // --- SỬA LỖI QUAN TRỌNG TẠI ĐÂY ---
+      // Trừ tồn kho
       for (const item of shopItems) {
-        const book = await Book.findById(item.product).session(session);
-        if (!book) throw new Error(`Sách không tồn tại: ${item.name}`);
-        
-        // Dùng đúng biến countInStock khớp với Model Book.js
-        const stock = Number(book.countInStock) || 0; 
-        
-        if (stock < item.qty) {
-            throw new Error(`Sách "${item.name}" tạm hết hàng (Kho còn: ${stock})`);
-        }
-        
-        // Trừ tồn kho
-        book.countInStock = stock - item.qty;
+        const book = dbBooksMap[item.product.toString()];
+        book.countInStock = book.countInStock - item.qty;
         await book.save({ session });
       }
     }
@@ -111,7 +115,7 @@ const addOrderItems = async (req, res) => {
     if (createdOrders.length === 0) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({ message: 'Lỗi xác định Shop. Vui lòng thử lại.' });
+      return res.status(400).json({ message: 'Không thể tạo đơn hàng. Vui lòng thử lại.' });
     }
 
     await session.commitTransaction();
@@ -127,7 +131,7 @@ const addOrderItems = async (req, res) => {
     try { await session.abortTransaction(); } catch (_) {}
     session.endSession();
     console.error('Order Error:', error);
-    res.status(500).json({ message: error.message || 'Lỗi tạo đơn hàng' });
+    res.status(500).json({ message: error.message || 'Lỗi xử lý đơn hàng' });
   }
 };
 
@@ -136,8 +140,19 @@ const getOrderById = async (req, res) => {
     const order = await Order.findById(req.params.id)
       .populate('user', 'name email')
       .populate('shop_id', 'name email shop_info');
-    if (order) res.json(order);
-    else res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
+    if (order) {
+      // Security: Chỉ người mua hoặc người bán (chủ shop) hoặc admin mới xem được
+      const isOwner = order.user._id.toString() === req.user._id.toString();
+      const isSeller = order.shop_id._id.toString() === req.user._id.toString();
+      
+      if (isOwner || isSeller || req.user.role === 'admin') {
+        res.json(order);
+      } else {
+        res.status(403).json({ message: 'Không có quyền xem đơn hàng này' });
+      }
+    } else {
+      res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -156,6 +171,7 @@ const getMyOrders = async (req, res) => {
 
 const getOrdersByShop = async (req, res) => {
   try {
+    // Tìm các đơn hàng mà shop_id trùng với user đang login
     const orders = await Order.find({
       $or: [{ shop: req.user._id }, { shop_id: req.user._id }],
     })
@@ -173,8 +189,9 @@ const updateOrderStatus = async (req, res) => {
     const order = await Order.findById(req.params.id);
 
     if (order) {
+      // Chỉ Seller sở hữu đơn hàng mới được update
       if (order.shop_id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Không có quyền' });
+        return res.status(403).json({ message: 'Không có quyền cập nhật đơn hàng này' });
       }
 
       order.status = status;
