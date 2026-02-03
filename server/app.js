@@ -41,6 +41,7 @@ if (!fs.existsSync(uploadDir)){
 
 // 2. Biến thư mục uploads thành static để truy cập qua URL
 // Ví dụ: http://localhost:5000/uploads/image-123.jpg
+const dirname = path.resolve();
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Error Handling Middleware
