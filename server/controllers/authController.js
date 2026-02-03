@@ -75,6 +75,8 @@ exports.getUserProfile = asyncHandler(async (req, res) => {
       role: user.role,
       phone: user.phone || '',
       address: user.address || '',
+      dateOfBirth: user.dateOfBirth || null, 
+      gender: user.gender || 'Nam',          
       shop_info: user.shop_info || {}
     });
   } else {
@@ -94,6 +96,13 @@ exports.updateUserProfile = asyncHandler(async (req, res) => {
     user.email = req.body.email || user.email;
     user.phone = req.body.phone || user.phone;
     user.address = req.body.address || user.address;
+
+    if (req.body.dateOfBirth) {
+      user.dateOfBirth = req.body.dateOfBirth;
+    }
+    if (req.body.gender) {
+      user.gender = req.body.gender;
+    }
     
     if (req.body.password) {
       user.password = req.body.password;

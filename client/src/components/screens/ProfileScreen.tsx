@@ -22,6 +22,8 @@ interface UserProfile {
   address?: string;
   role: string;
   avatar?: string;
+  dateOfBirth?: string; // Dạng ISO string từ DB
+  gender?: string;
 }
 
 export function ProfileScreen({ onNavigate, fromRegister }: ProfileScreenProps) {
@@ -30,9 +32,22 @@ export function ProfileScreen({ onNavigate, fromRegister }: ProfileScreenProps) 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
+  // State cho Form
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [gender, setGender] = useState('Nam');
+  
+  // State cho Ngày Sinh
+  const [dobDay, setDobDay] = useState<number>(1);
+  const [dobMonth, setDobMonth] = useState<number>(1);
+  const [dobYear, setDobYear] = useState<number>(1990);
+
+  // Tạo mảng dữ liệu cho Select box
+  const days = Array.from({ length: 31 }, (_, i) => i + 1);
+  const months = Array.from({ length: 12 }, (_, i) => i + 1);
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 100 }, (_, i) => currentYear - i); // 100 năm gần nhất
 
   useEffect(() => {
     fetchProfile();
@@ -46,6 +61,15 @@ export function ProfileScreen({ onNavigate, fromRegister }: ProfileScreenProps) 
       setName(data.name || '');
       setPhone(data.phone || '');
       setAddress(data.address || '');
+      setGender(data.gender || 'Nam');
+
+      // Xử lý Ngày sinh từ DB (dạng ISO: 1990-01-01T00:00:00.000Z)
+      if (data.dateOfBirth) {
+        const dateObj = new Date(data.dateOfBirth);
+        setDobDay(dateObj.getDate());
+        setDobMonth(dateObj.getMonth() + 1); // GetMonth trả về 0-11
+        setDobYear(dateObj.getFullYear());
+      }
     } catch (err) {
       console.error('Fetch profile error:', err);
     } finally {
@@ -57,19 +81,31 @@ export function ProfileScreen({ onNavigate, fromRegister }: ProfileScreenProps) 
     setSaving(true);
     setSuccessMsg('');
     try {
+      // Gom ngày tháng năm thành Date Object chuẩn
+      const dateOfBirth = new Date(dobYear, dobMonth - 1, dobDay); // Tháng bắt đầu từ 0
+
       const { data } = await api.put<UserProfile & { token: string }>('/auth/profile', {
         name,
         phone,
         address,
+        gender,
+        dateOfBirth, // Gửi lên server
       });
+
       // Cập nhật localStorage
       const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-      localStorage.setItem('userInfo', JSON.stringify({ ...userInfo, name: data.name, phone: data.phone, address: data.address }));
+      localStorage.setItem('userInfo', JSON.stringify({ 
+        ...userInfo, 
+        name: data.name, 
+        phone: data.phone, 
+        address: data.address 
+      }));
+      
       if (data.token) {
         localStorage.setItem('token', data.token);
       }
       setSuccessMsg('Cập nhật thành công!');
-      await fetchProfile();
+      await fetchProfile(); // Load lại để đồng bộ
     } catch (err) {
       console.error('Update profile error:', err);
       alert('Cập nhật thất bại');
@@ -83,11 +119,6 @@ export function ProfileScreen({ onNavigate, fromRegister }: ProfileScreenProps) 
     const [local, domain] = email.split('@');
     if (local.length <= 3) return email;
     return `${local.slice(0, 3)}****@${domain}`;
-  };
-
-  const maskPhone = (ph?: string) => {
-    if (!ph || ph.length < 4) return ph || '';
-    return '********' + ph.slice(-2);
   };
 
   return (
@@ -106,7 +137,6 @@ export function ProfileScreen({ onNavigate, fromRegister }: ProfileScreenProps) 
         )}
 
         <div className="flex flex-col md:flex-row gap-8">
-          
           <ProfileSidebar onNavigate={onNavigate} activeScreen="profile" />
 
           {/* Main Content */}
@@ -156,32 +186,56 @@ export function ProfileScreen({ onNavigate, fromRegister }: ProfileScreenProps) 
                   <div className="grid gap-2">
                     <Label>Giới tính</Label>
                     <div className="flex gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="gender" defaultChecked className="text-[#008080] focus:ring-[#008080]" />
-                        <span className="text-sm">Nam</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="gender" className="text-[#008080] focus:ring-[#008080]" />
-                        <span className="text-sm">Nữ</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="gender" className="text-[#008080] focus:ring-[#008080]" />
-                        <span className="text-sm">Khác</span>
-                      </label>
+                      {['Nam', 'Nữ', 'Khác'].map((g) => (
+                        <label key={g} className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="radio" 
+                            name="gender" 
+                            value={g}
+                            checked={gender === g}
+                            onChange={(e) => setGender(e.target.value)}
+                            className="text-[#008080] focus:ring-[#008080]" 
+                          />
+                          <span className="text-sm">{g}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
 
                   <div className="grid gap-2">
                     <Label>Ngày sinh</Label>
                     <div className="flex gap-2">
-                       <select title="Ngày sinh" aria-label="Ngày sinh" className="border border-gray-200 rounded-md p-2 text-sm flex-1 bg-gray-50">
-                          <option>Ngày 1</option>
+                       {/* SELECT NGÀY */}
+                       <select 
+                          title="Ngày sinh" 
+                          aria-label="Ngày sinh" 
+                          value={dobDay}
+                          onChange={(e) => setDobDay(Number(e.target.value))}
+                          className="border border-gray-200 rounded-md p-2 text-sm flex-1 bg-gray-50"
+                       >
+                          {days.map(d => <option key={d} value={d}>Ngày {d}</option>)}
                        </select>
-                        <select title="Tháng sinh" aria-label="Tháng sinh" className="border border-gray-200 rounded-md p-2 text-sm flex-1 bg-gray-50">
-                          <option>Tháng 1</option>
+
+                       {/* SELECT THÁNG */}
+                       <select 
+                          title="Tháng sinh" 
+                          aria-label="Tháng sinh" 
+                          value={dobMonth}
+                          onChange={(e) => setDobMonth(Number(e.target.value))}
+                          className="border border-gray-200 rounded-md p-2 text-sm flex-1 bg-gray-50"
+                       >
+                          {months.map(m => <option key={m} value={m}>Tháng {m}</option>)}
                        </select>
-                        <select title="Năm sinh" aria-label="Năm sinh" className="border border-gray-200 rounded-md p-2 text-sm flex-1 bg-gray-50">
-                          <option>1990</option>
+
+                       {/* SELECT NĂM */}
+                       <select 
+                          title="Năm sinh" 
+                          aria-label="Năm sinh" 
+                          value={dobYear}
+                          onChange={(e) => setDobYear(Number(e.target.value))}
+                          className="border border-gray-200 rounded-md p-2 text-sm flex-1 bg-gray-50"
+                       >
+                          {years.map(y => <option key={y} value={y}>{y}</option>)}
                        </select>
                     </div>
                   </div>

@@ -6,13 +6,16 @@ const userSchema = mongoose.Schema(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    address: { type: String }, 
+    phone: { type: String },   
+    dateOfBirth: { type: Date }, 
+    gender: { type: String, enum: ['Nam', 'Nữ', 'Khác'], default: 'Nam' },
     isAdmin: { type: Boolean, required: true, default: false },
     role: { 
       type: String, 
       enum: ['user', 'admin', 'seller'], 
       default: 'user' 
     },
-    // THÊM DÒNG NÀY VÀO:
     tokenVersion: { type: Number, default: 0 }, 
     
     shop_info: {

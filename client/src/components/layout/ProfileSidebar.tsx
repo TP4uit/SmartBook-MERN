@@ -40,15 +40,6 @@ export function ProfileSidebar({ onNavigate, activeScreen }: ProfileSidebarProps
           label="Đơn mua" 
           onClick={() => onNavigate('order-history')}
         />
-        <div className="pt-4 mt-4 border-t border-gray-200">
-          <button 
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-[#FFC107] hover:bg-[#FFC107]/10 rounded-lg transition-colors"
-            onClick={() => onNavigate('seller-dashboard')}
-          >
-            <Store className="h-4 w-4" />
-            <span>Kênh người bán</span>
-          </button>
-        </div>
         <div className="pt-2">
            <button 
             className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors"
