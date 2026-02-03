@@ -10,7 +10,7 @@ interface ProfileSidebarProps {
 export function ProfileSidebar({ onNavigate, activeScreen }: ProfileSidebarProps) {
   return (
     <aside className="w-full md:w-64 space-y-6">
-      <div className="flex items-center gap-3 pb-6 border-b border-gray-200">
+      {/*<div className="flex items-center gap-3 pb-6 border-b border-gray-200">
         <Avatar className="h-12 w-12 border-2 border-[#008080]">
           <AvatarImage src="https://images.unsplash.com/photo-1678542230173-8e2c3eb87c85?auto=format&fit=crop&q=80&w=200" />
           <AvatarFallback>N</AvatarFallback>
@@ -19,7 +19,7 @@ export function ProfileSidebar({ onNavigate, activeScreen }: ProfileSidebarProps
           <div className="font-bold text-gray-900">Nguyễn Văn A</div>
           <div className="text-xs text-gray-500">Thành viên Bạc</div>
         </div>
-      </div>
+      </div> */}
 
       <nav className="space-y-1">
         <MenuLink 

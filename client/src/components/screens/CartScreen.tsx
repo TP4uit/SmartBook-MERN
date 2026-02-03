@@ -1,7 +1,10 @@
 import React from 'react';
 import { Button } from '../ui/button';
-import { Trash2, Store, ArrowRight, ShoppingBag } from 'lucide-react';
+// 1. Thêm ArrowLeft vào import
+import { Trash2, Store, ArrowRight, ShoppingBag, ArrowLeft } from 'lucide-react';
 import { useCart } from '../../hooks/useCart';
+// 2. Thêm import useNavigate
+import { useNavigate } from 'react-router-dom';
 
 interface CartScreenProps {
   onNavigate: (screen: string) => void;
@@ -9,6 +12,8 @@ interface CartScreenProps {
 
 export function CartScreen({ onNavigate }: CartScreenProps) {
   const { cartItems, removeFromCart, updateQuantity, totalPrice, groupedItems } = useCart();
+  // 3. Khởi tạo navigate
+  const navigate = useNavigate();
 
   if (cartItems.length === 0) {
     return (
@@ -28,6 +33,19 @@ export function CartScreen({ onNavigate }: CartScreenProps) {
   return (
     <div className="min-h-screen bg-[#F5F5DC] py-8">
       <div className="container mx-auto px-4 max-w-6xl">
+        
+        {/* 4. THÊM NÚT QUAY LẠI TẠI ĐÂY */}
+        <div className="mb-4">
+          <Button 
+            variant="ghost" 
+            className="pl-0 text-gray-600 hover:text-[#008080] hover:bg-transparent gap-2"
+            onClick={() => navigate(-1)} // Quay lại trang trước đó
+          >
+            <ArrowLeft className="h-5 w-5" />
+            Quay lại
+          </Button>
+        </div>
+
         <h1 className="text-3xl font-bold text-[#008080] mb-8">Giỏ hàng của bạn</h1>
 
         <div className="flex flex-col lg:flex-row gap-8">
@@ -36,7 +54,7 @@ export function CartScreen({ onNavigate }: CartScreenProps) {
           <div className="flex-1 space-y-6">
             {Object.entries(groupedItems).map(([shopName, items]) => (
               <div key={shopName} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                {/* Header Shop */}
+                {/* ... (Code cũ giữ nguyên) ... */}
                 <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
                   <Store className="h-5 w-5 text-[#008080]" />
                   <span className="font-bold text-gray-800">{shopName}</span>
@@ -57,7 +75,6 @@ export function CartScreen({ onNavigate }: CartScreenProps) {
                       <div className="flex-1">
                         <div className="flex justify-between items-start">
                           <h3 className="font-medium text-gray-900 line-clamp-2">{item.title}</h3>
-                          {/* Nút xóa sản phẩm - Đã thêm aria-label */}
                           <button 
                             onClick={() => removeFromCart(item.bookId)} 
                             className="text-gray-400 hover:text-red-500 p-1"
@@ -71,23 +88,18 @@ export function CartScreen({ onNavigate }: CartScreenProps) {
                           {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.price)}
                         </p>
                         
-                        {/* Bộ tăng giảm số lượng */}
                         <div className="flex items-center gap-3 mt-3">
                           <div className="flex items-center border border-gray-200 rounded-lg">
-                            {/* Nút giảm - Đã thêm aria-label */}
                             <button 
                               onClick={() => updateQuantity(item.bookId, -1)}
                               className="px-3 py-1 hover:bg-gray-50 text-gray-600"
                               aria-label="Giảm số lượng"
-                              title="Giảm"
                             >-</button>
                             <span className="px-2 text-sm font-medium w-8 text-center">{item.quantity}</span>
-                            {/* Nút tăng - Đã thêm aria-label */}
                             <button 
                               onClick={() => updateQuantity(item.bookId, 1)}
                               className="px-3 py-1 hover:bg-gray-50 text-gray-600"
                               aria-label="Tăng số lượng"
-                              title="Tăng"
                             >+</button>
                           </div>
                         </div>
@@ -103,7 +115,7 @@ export function CartScreen({ onNavigate }: CartScreenProps) {
           <div className="lg:w-96">
             <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#008080]/10 sticky top-24">
               <h3 className="text-lg font-bold text-gray-800 mb-6">Thanh toán</h3>
-              
+              {/* ... (Phần thanh toán giữ nguyên) ... */}
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-gray-500">
                   <span>Tạm tính</span>

@@ -129,7 +129,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F5F5DC] font-sans text-slate-900 relative">
-      <div className="fixed top-4 left-4 z-50">
+      {/* <div className="fixed top-4 left-4 z-50">
         <div className="relative">
           <Button
             variant="outline"
@@ -153,7 +153,7 @@ export default function App() {
               <NavButton to="/address-book" active={location === '/address-book'}>Sổ địa chỉ</NavButton>
               <NavButton to="/order-history" active={location === '/order-history'}>Đơn mua</NavButton>
 
-              {/* SỬA Ở ĐÂY: Đổi 'shop' thành 'seller' */}
+              
               {(userRole === 'seller' || userRole === 'admin') && (
                 <>
                   <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Seller Portal</div>
@@ -164,7 +164,7 @@ export default function App() {
                 </>
               )}
 
-              {/* Chỉ hiện menu Admin nếu là Admin */}
+            
               {userRole === 'admin' && (
                 <>
                   <div className="text-xs font-bold text-gray-400 px-2 py-1 uppercase tracking-wider mt-2">Admin</div>
@@ -176,7 +176,8 @@ export default function App() {
             </div>
           )}
         </div>
-      </div>
+      </div> */}
+      
 
       <main className="w-full h-full">
         <Routes>
