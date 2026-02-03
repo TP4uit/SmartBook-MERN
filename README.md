@@ -45,3 +45,43 @@
 ```bash
 git clone [https://github.com/tp4uit/smartbook-mern.git](https://github.com/tp4uit/smartbook-mern.git)
 cd smartbook-mern
+
+2. Cấu hình Backend (Server)
+Bash
+cd server
+npm install
+Tạo file .env trong thư mục server và điền các thông tin:
+
+Đoạn mã
+PORT=5000
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret_key
+GEMINI_API_KEY=your_google_gemini_api_key
+NODE_ENV=development
+Chạy server:
+
+Bash
+npm run dev
+3. Cấu hình Frontend (Client)
+Mở một terminal mới:
+
+Bash
+cd client
+npm install
+npm run dev
+Truy cập http://localhost:5173 để xem ứng dụng.
+
+📂 Cấu trúc thư mục
+smartbook-mern/
+├── client/                 # React Frontend
+│   ├── src/
+│   │   ├── components/     # UI Components & Screens
+│   │   ├── services/       # API Calls (Axios)
+│   │   └── ...
+├── server/                 # Express Backend
+│   ├── config/             # Database config
+│   ├── controllers/        # Logic xử lý
+│   ├── models/             # Mongoose Schemas
+│   ├── routes/             # API Routes
+│   └── utils/              # Helper functions (AI, Token...)
+└── ...
