@@ -1,35 +1,22 @@
 const express = require('express');
 const router = express.Router();
-const adminController = require('../controllers/adminController');
 const { protect, admin } = require('../middleware/authMiddleware');
-
-// Debug: Kiểm tra xem controller đã load đủ hàm chưa
-console.log('✅ Admin Controller Loaded:', Object.keys(adminController));
-
 const {
+  getDashboardStats,
   getUsers,
   deleteUser,
-  getUserById,
-  updateUser,
-  createUser,
-  getDashboardStats
-} = adminController;
+  getAllShops
+} = require('../controllers/adminController');
 
-// Tất cả routes dưới đây đều cần quyền Admin
-router.use(protect);
-router.use(admin);
+// Debug check
+console.log('✅ Admin Routes Loaded');
 
-// Route thống kê (Đặt lên đầu để tránh trùng với :id)
+// Tất cả các route dưới đây đều yêu cầu Login + Admin Role
+router.use(protect, admin);
+
 router.get('/stats', getDashboardStats);
-
-// Route quản lý User
-router.route('/users')
-    .get(getUsers)
-    .post(createUser);
-
-router.route('/users/:id')
-    .delete(deleteUser)
-    .get(getUserById)
-    .put(updateUser);
+router.get('/users', getUsers);
+router.get('/shops', getAllShops);
+router.delete('/users/:id', deleteUser);
 
 module.exports = router;

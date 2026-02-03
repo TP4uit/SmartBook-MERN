@@ -1,19 +1,20 @@
 import axios from 'axios';
 
-// 1. Định nghĩa kiểu dữ liệu User (Cho AdminUsersScreen dùng)
+// 1. Định nghĩa kiểu dữ liệu User & Shop
 export interface UserData {
   _id: string;
   name: string;
   email: string;
   role: string;
   shop_info?: {
-    name: string;
-    description: string;
+    shop_name: string;
+    shop_address: string;
+    shop_avatar: string;
   };
 }
 
 // 2. Cấu hình Axios
-// FIX LỖI Ở ĐÂY: Dùng (import.meta as any) để TypeScript không bắt bẻ nữa
+// Fix lỗi TypeScript environment
 const API_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
@@ -23,20 +24,19 @@ const api = axios.create({
   },
 });
 
-// 3. Interceptors (Quan trọng: Tự động logout khi token lỗi)
+// 3. Interceptors (Tự động thêm Token & Logout khi hết hạn)
 api.interceptors.request.use(
   (config) => {
-    const userInfo = localStorage.getItem('userInfo'); // Hoặc 'token' tùy cách bạn lưu
+    const userInfo = localStorage.getItem('userInfo');
     if (userInfo) {
       try {
         const parsed = JSON.parse(userInfo);
-        const token = parsed.token || localStorage.getItem('token'); // Fallback check
+        const token = parsed.token;
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
       } catch (e) {
-        // Nếu userInfo không phải JSON, thử lấy trực tiếp token (dự phòng)
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token'); // Fallback cũ
         if (token) config.headers.Authorization = `Bearer ${token}`;
       }
     }
@@ -49,11 +49,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Chỉ redirect nếu không phải đang ở trang login/register
       if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-        localStorage.removeItem('userInfo');
-        localStorage.removeItem('token');
-        localStorage.removeItem('cartItems');
+        localStorage.removeItem('userInfo'); // Xóa sạch session
         window.location.href = '/login';
       }
     }
@@ -63,9 +60,7 @@ api.interceptors.response.use(
 
 export default api;
 
-// --- CÁC HÀM API (HỢP NHẤT CŨ & MỚI) ---
-
-// ================= ADMIN (MỚI THÊM) =================
+// ================= ADMIN API =================
 export const getAdminStats = async () => {
   const { data } = await api.get('/admin/stats');
   return data;
@@ -81,30 +76,29 @@ export const deleteUser = async (id: string) => {
   return data;
 };
 
-export const createUser = async (userData: any) => {
-  const { data } = await api.post('/admin/users', userData);
+export const getAdminShops = async () => {
+  const { data } = await api.get<UserData[]>('/admin/shops');
   return data;
 };
 
-export const updateUser = async (id: string, userData: any) => {
-  const { data } = await api.put(`/admin/users/${id}`, userData);
+// ================= SELLER API =================
+export const getSellerOrders = async () => {
+  const { data } = await api.get('/orders/seller/orders');
   return data;
 };
 
-// ================= SELLER & ORDER (GIỮ NGUYÊN TỪ CODE CŨ) =================
-export function getSellerOrders() {
-  return api.get('/orders/seller/orders');
-}
+// ================= USER & ORDER API =================
+export const getMyOrders = async () => {
+  const { data } = await api.get('/orders/myorders');
+  return data;
+};
 
-// Wrapper cho Dashboard Stats
-export function getDashboardStats() {
-  return api.get('/admin/stats'); 
-}
+export const createOrder = async (orderData: any) => {
+  const { data } = await api.post('/orders', orderData);
+  return data;
+};
 
-export function getMyOrders() {
-  return api.get('/orders/myorders');
-}
-
-export function createOrder(orderData: any) {
-  return api.post('/orders', orderData);
-}
+export const getOrderById = async (id: string) => {
+  const { data } = await api.get(`/orders/${id}`);
+  return data;
+};
