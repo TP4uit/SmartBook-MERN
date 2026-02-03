@@ -1,51 +1,40 @@
 const Book = require('../models/Book');
+const { analyzeBookSearch } = require('../utils/ai'); // Import hàm AI
 
-// @desc    Fetch all products
+// @desc    Fetch all products (Giữ nguyên)
 // @route   GET /api/products
-// @access  Public
 const getProducts = async (req, res) => {
   try {
     const pageSize = 12;
     const page = Number(req.query.pageNumber) || 1;
 
-    // Build Keyword & Filter Query
     const keyword = req.query.keyword
-      ? {
-          title: {
-            $regex: req.query.keyword,
-            $options: 'i',
-          },
-        }
+      ? { title: { $regex: req.query.keyword, $options: 'i' } }
       : {};
       
     const category = req.query.category ? { category: req.query.category } : {};
-    
-    // Price Filter
     const minPrice = req.query.minPrice ? Number(req.query.minPrice) : 0;
     const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : 100000000;
     const priceFilter = { price: { $gte: minPrice, $lte: maxPrice } };
 
     const count = await Book.countDocuments({ ...keyword, ...category, ...priceFilter });
     const books = await Book.find({ ...keyword, ...category, ...priceFilter })
-      .populate('shop_id', 'shop_info.shop_name') // Populate tên Shop
+      .populate('shop_id', 'shop_info.shop_name')
       .limit(pageSize)
       .skip(pageSize * (page - 1))
       .sort({ createdAt: -1 });
 
-    // Trả về Array trực tiếp như Frontend yêu cầu
     res.json(books);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Fetch single product
-// @route   GET /api/products/:id
-// @access  Public
+// @desc    Fetch single product (Giữ nguyên)
 const getProductById = async (req, res) => {
   try {
     const book = await Book.findById(req.params.id)
-      .populate('shop_id', 'shop_info.shop_name shop_info.shop_avatar'); // Lấy info Shop để hiển thị
+      .populate('shop_id', 'shop_info.shop_name shop_info.shop_avatar');
 
     if (book) {
       res.json(book);
@@ -57,22 +46,11 @@ const getProductById = async (req, res) => {
   }
 };
 
-// @desc    Create a product (Seller)
-// @route   POST /api/products
-// @access  Private/Seller
+// @desc    Create a product (Giữ nguyên)
 const createProduct = async (req, res) => {
   try {
-    const {
-      title,
-      price,
-      image,
-      author,
-      category,
-      countInStock,
-      description,
-    } = req.body;
+    const { title, price, image, author, category, countInStock, description } = req.body;
 
-    // Validate
     if (!title || !author || !price) {
         return res.status(400).json({ message: 'Vui lòng điền đầy đủ thông tin sách' });
     }
@@ -81,7 +59,7 @@ const createProduct = async (req, res) => {
       title,
       price,
       user: req.user._id,
-      shop_id: req.user._id, // QUAN TRỌNG: Gán sách này thuộc về Shop của user đang login
+      shop_id: req.user._id,
       image: image || '/images/sample.jpg',
       author,
       category,
@@ -89,7 +67,7 @@ const createProduct = async (req, res) => {
       description,
       numReviews: 0,
       rating: 0,
-      ai_keywords: [category.toLowerCase(), 'new book'], // Tạo keyword mặc định cho AI sau này
+      ai_keywords: [category.toLowerCase(), 'new book'],
     });
 
     const createdBook = await book.save();
@@ -99,25 +77,13 @@ const createProduct = async (req, res) => {
   }
 };
 
-// @desc    Update a product
-// @route   PUT /api/products/:id
-// @access  Private/Seller
+// @desc    Update a product (Giữ nguyên)
 const updateProduct = async (req, res) => {
   try {
-    const {
-      title,
-      price,
-      description,
-      image,
-      author,
-      category,
-      countInStock,
-    } = req.body;
-
+    const { title, price, description, image, author, category, countInStock } = req.body;
     const book = await Book.findById(req.params.id);
 
     if (book) {
-      // Check quyền sở hữu: Chỉ chủ shop mới được sửa sách của mình
       if (book.shop_id.toString() !== req.user._id.toString() && !req.user.isAdmin) {
           return res.status(403).json({ message: 'Bạn không có quyền sửa sách này' });
       }
@@ -140,18 +106,14 @@ const updateProduct = async (req, res) => {
   }
 };
 
-// @desc    Delete a product
-// @route   DELETE /api/products/:id
-// @access  Private/Seller
+// @desc    Delete a product (Giữ nguyên)
 const deleteProduct = async (req, res) => {
     try {
       const book = await Book.findById(req.params.id);
-  
       if (book) {
         if (book.shop_id.toString() !== req.user._id.toString() && !req.user.isAdmin) {
             return res.status(403).json({ message: 'Bạn không có quyền xóa sách này' });
         }
-
         await book.deleteOne();
         res.json({ message: 'Product removed' });
       } else {
@@ -160,7 +122,40 @@ const deleteProduct = async (req, res) => {
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
-  };
+};
+
+// --- TÍNH NĂNG MỚI: AI SEARCH ---
+// @desc    Search products using AI Context
+// @route   POST /api/products/ai-search
+// @access  Public
+const searchProductsAI = async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ message: 'Vui lòng nhập nội dung tìm kiếm' });
+
+    // 1. Lấy dữ liệu sách rút gọn (để tiết kiệm token AI)
+    // Chỉ lấy 50 sách mới nhất để demo (Production sẽ dùng Vector Search)
+    const allBooks = await Book.find({})
+      .select('_id title author category description price') 
+      .sort({ createdAt: -1 })
+      .limit(50); 
+
+    // 2. Gửi cho AI phân tích
+    const matchedIds = await analyzeBookSearch(query, allBooks);
+
+    // 3. Lấy thông tin đầy đủ của các sách được AI chọn
+    let results = [];
+    if (matchedIds && matchedIds.length > 0) {
+      results = await Book.find({ _id: { $in: matchedIds } })
+        .populate('shop_id', 'shop_info.shop_name');
+    }
+
+    res.json(results);
+  } catch (error) {
+    console.error('AI Search Error:', error);
+    res.status(500).json({ message: 'Lỗi khi xử lý AI Search' });
+  }
+};
 
 module.exports = {
   getProducts,
@@ -168,4 +163,5 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
+  searchProductsAI, // Export thêm hàm này
 };

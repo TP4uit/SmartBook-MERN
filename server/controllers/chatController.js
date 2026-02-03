@@ -1,35 +1,56 @@
-const Book = require('../models/Book');
 const { generateChatResponse } = require('../utils/ai');
+const Book = require('../models/Book');
 
-// @desc    Chat với AI (có ngữ cảnh sách)
+// @desc    Chat với AI (có ngữ cảnh lịch sử & sản phẩm)
 // @route   POST /api/chat
-// @access  Public (Hoặc Private tùy nhu cầu)
+// @access  Public
 const chatWithAI = async (req, res) => {
   try {
     const { message, history, productId } = req.body;
+    // history: Danh sách tin nhắn cũ từ frontend
+    // productId: ID sách đang xem (nếu có) để AI tư vấn chính xác
 
     if (!message) {
       return res.status(400).json({ message: 'Vui lòng nhập tin nhắn' });
     }
 
-    let bookContext = null;
-
-    // Nếu đang xem sách, lấy thông tin sách để AI hiểu ngữ cảnh
+    // 1. Xây dựng ngữ cảnh (Context)
+    let contextPrompt = message;
+    
+    // Nếu đang xem một cuốn sách cụ thể, lấy thông tin sách đó nhồi vào đầu AI
     if (productId) {
-      bookContext = await Book.findById(productId).select('title author price description');
+      const product = await Book.findById(productId).select('title author price description category rating');
+      if (product) {
+        contextPrompt = `
+          [Ngữ cảnh: Người dùng đang xem cuốn sách "${product.title}" 
+           - Tác giả: ${product.author}
+           - Giá: ${product.price} đ
+           - Đánh giá: ${product.rating} sao
+           - Mô tả: ${product.description}]
+           
+          Câu hỏi của người dùng: "${message}"
+          
+          Hãy trả lời ngắn gọn, thân thiện, tập trung vào cuốn sách này.
+        `;
+      }
     }
 
-    // Chuẩn bị lịch sử chat
-    const chatHistory = history || [];
-    chatHistory.push({ role: "user", parts: [{ text: message }] });
+    // 2. Chuẩn hóa lịch sử chat cho Gemini (Mapping)
+    // Frontend thường gửi: { role: 'user/bot', content: '...' }
+    // Gemini cần: { role: 'user/model', parts: [{ text: '...' }] }
+    const geminiHistory = (history || []).map(msg => ({
+      role: msg.role === 'bot' || msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content || msg.text || '' }]
+    }));
 
-    // Gọi AI
-    const aiReply = await generateChatResponse(chatHistory, bookContext);
+    // 3. Gọi AI
+    const reply = await generateChatResponse(geminiHistory, contextPrompt);
 
-    res.json({ reply: aiReply });
+    res.json({ reply });
   } catch (error) {
     console.error('Chat Controller Error:', error);
-    res.status(500).json({ message: error.message });
+    // Trả về câu fallback nếu lỗi để không crash UI
+    res.json({ reply: "Xin lỗi, hiện tại tôi đang bị quá tải. Bạn hãy hỏi lại sau một chút nhé!" });
   }
 };
 

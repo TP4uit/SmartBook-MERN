@@ -1,14 +1,12 @@
-// - Sử dụng mã nguồn từ HomeScreen.tsx
 import React, { useEffect, useState } from 'react';
 import { Navbar } from '../layout/Navbar';
 import { Footer } from '../layout/Footer';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Sparkles, ArrowRight, Star } from 'lucide-react';
+import { Sparkles, ArrowRight, Star, Loader2 } from 'lucide-react'; // Import thêm Loader2
 import api from '../../services/api';
 
-const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600';
-// Định nghĩa URL Server để nối link ảnh local
+const PLACEHOLDER_IMAGE = '[https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600](https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600)';
 const SERVER_URL = 'http://localhost:5000';
 
 interface Book {
@@ -28,11 +26,9 @@ interface HomeScreenProps {
   onNavigate: (screen: string, productId?: string) => void;
 }
 
-// Hàm helper xử lý đường dẫn ảnh local
 function getBookImage(book: Book): string {
   const rawImage = book.image ?? book.images?.[0];
   if (!rawImage) return PLACEHOLDER_IMAGE;
-  // Nếu là đường dẫn local (bắt đầu bằng /uploads), nối với domain server
   if (rawImage.startsWith('/uploads')) {
     return `${SERVER_URL}${rawImage}`;
   }
@@ -46,13 +42,20 @@ function getBookRating(book: Book): number {
 export function HomeScreen({ onNavigate }: HomeScreenProps) {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // State cho AI Search
+  const [aiQuery, setAiQuery] = useState('');
+  const [isAiSearching, setIsAiSearching] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<Book[]>([]);
 
   useEffect(() => {
     const fetchBooks = async () => {
       try {
-        // Cập nhật: Nhận dữ liệu trực tiếp dưới dạng Mảng (Array)
         const { data } = await api.get<Book[]>('/products?pageNumber=1');
-        setBooks(Array.isArray(data) ? data : []);
+        const bookList = Array.isArray(data) ? data : [];
+        setBooks(bookList);
+        // Mặc định ban đầu AI Suggestions lấy 5 sách mới nhất
+        setAiSuggestions(bookList.slice(0, 5));
       } catch (err) {
         console.error('Fetch products error:', err);
         setBooks([]);
@@ -63,10 +66,25 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
     fetchBooks();
   }, []);
 
-  const aiSuggestions = books.slice(0, 5);
+  // Xử lý tìm kiếm AI
+  const handleAISearch = async () => {
+    if (!aiQuery.trim()) return;
+    
+    setIsAiSearching(true);
+    try {
+      const { data } = await api.post<Book[]>('/products/ai-search', { query: aiQuery });
+      if (data && Array.isArray(data)) {
+        setAiSuggestions(data);
+      }
+    } catch (error) {
+      console.error("AI Search Failed", error);
+    } finally {
+      setIsAiSearching(false);
+    }
+  };
+
   const bestSellers = books.slice(0, 10);
 
-  // Giữ nguyên toàn bộ JSX cũ bên dưới...
   return (
     <div className="flex flex-col min-h-screen bg-[#F5F5DC]">
       <Navbar hideSearch activeScreen="home" />
@@ -87,9 +105,21 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
             </p>
             <div className="relative max-w-2xl mx-auto shadow-2xl shadow-[#008080]/10 rounded-2xl">
               <div className="flex items-center bg-white rounded-2xl p-2 border border-[#008080]/20 focus-within:ring-2 focus-within:ring-[#008080] transition-all">
-                <Sparkles className="h-6 w-6 text-[#FFC107] ml-4 animate-pulse" />
-                <Input className="flex-1 border-none shadow-none focus-visible:ring-0 text-lg py-6 bg-transparent" placeholder="Bạn đang tìm sách gì? (VD: sách chữa lành tâm hồn...)" />
-                <Button className="bg-[#008080] hover:bg-[#006666] text-white rounded-xl px-8 py-6 h-auto text-lg font-medium">Tìm kiếm</Button>
+                <Sparkles className={`h-6 w-6 text-[#FFC107] ml-4 ${isAiSearching ? 'animate-spin' : 'animate-pulse'}`} />
+                <Input 
+                  className="flex-1 border-none shadow-none focus-visible:ring-0 text-lg py-6 bg-transparent" 
+                  placeholder="Bạn đang tìm sách gì? (VD: sách chữa lành tâm hồn...)" 
+                  value={aiQuery}
+                  onChange={(e) => setAiQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAISearch()}
+                />
+                <Button 
+                  className="bg-[#008080] hover:bg-[#006666] text-white rounded-xl px-8 py-6 h-auto text-lg font-medium"
+                  onClick={handleAISearch}
+                  disabled={isAiSearching}
+                >
+                  {isAiSearching ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Tìm kiếm'}
+                </Button>
               </div>
             </div>
           </div>
@@ -101,17 +131,25 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-[#008080]" />
-                <h2 className="text-2xl font-bold text-[#008080]">Gợi ý từ AI dành cho bạn</h2>
+                <h2 className="text-2xl font-bold text-[#008080]">
+                  {isAiSearching ? 'AI đang suy nghĩ...' : 'Gợi ý từ AI dành cho bạn'}
+                </h2>
               </div>
               <Button variant="ghost" className="text-[#008080]" onClick={() => onNavigate('marketplace')}>Xem tất cả <ArrowRight className="ml-2 h-4 w-4" /></Button>
             </div>
+            
+            {/* List Gợi ý */}
             <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x">
-              {(loading ? [] : aiSuggestions).map((book) => (
+              {aiSuggestions.length === 0 && !loading && !isAiSearching && (
+                 <p className="text-gray-500 italic pl-1">Chưa tìm thấy sách phù hợp. Hãy thử mô tả chi tiết hơn nhé.</p>
+              )}
+              
+              {aiSuggestions.map((book) => (
                 <div key={book._id} className="min-w-[200px] md:min-w-[240px] bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer snap-start border border-transparent hover:border-[#008080]/30 group" onClick={() => onNavigate('product-detail', book._id)}>
                   <div className="aspect-[2/3] rounded-lg overflow-hidden mb-4 bg-gray-100 relative">
                     <img src={getBookImage(book)} alt="Book Cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full text-xs font-bold text-[#008080] flex items-center gap-1 shadow-sm">
-                      <Sparkles className="h-3 w-3 text-[#FFC107]" /> 98% Match
+                      <Sparkles className="h-3 w-3 text-[#FFC107]" /> AI Match
                     </div>
                   </div>
                   <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 group-hover:text-[#008080]">{book.title}</h3>

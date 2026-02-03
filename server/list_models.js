@@ -1,48 +1,31 @@
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const dotenv = require('dotenv');
 dotenv.config();
 
-const API_KEY = process.env.GOOGLE_API_KEY;
-// URL API chính chủ của Google để lấy danh sách model
-const URL = `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`;
-
-async function getModels() {
-  if (!API_KEY) {
-    console.error("❌ LỖI: Chưa có GOOGLE_API_KEY trong file .env");
-    return;
-  }
-
+async function listModels() {
   try {
-    console.log("⏳ Đang kết nối tới Google để lấy danh sách Model...");
-    const response = await fetch(URL);
-    const data = await response.json();
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    // Lấy model model-info để list
+    // Lưu ý: SDK JS hiện tại không có hàm listModels trực tiếp dễ dùng ở level top,
+    // ta test thử bằng cách gọi model cơ bản nhất
+    console.log("🔑 Đang kiểm tra key:", process.env.GEMINI_API_KEY ? "OK" : "MISSING");
     
-    if (data.models) {
-        console.log("\n✅ DANH SÁCH CÁC MODEL BẠN ĐƯỢC DÙNG:");
-        console.log("---------------------------------------");
-        
-        // Lọc các model dùng để Chat (generateContent)
-        const chatModels = data.models
-            .filter(m => m.supportedGenerationMethods.includes("generateContent"))
-            .map(m => m.name.replace("models/", ""));
-            
-        console.log("🗣️  MODEL CHAT (Chọn 1 cái tên dưới đây):");
-        chatModels.forEach(m => console.log(`   - "${m}"`));
-        
-        // Lọc các model dùng để Embedding (embedContent)
-        const embedModels = data.models
-            .filter(m => m.supportedGenerationMethods.includes("embedContent"))
-            .map(m => m.name.replace("models/", ""));
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const result = await model.generateContent("Chào bạn, bạn có hoạt động không?");
+    console.log("✅ Model 'gemini-pro' hoạt động tốt:", result.response.text());
+    
+    console.log("------------------------------------------------");
+    
+    const modelFlash = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const resultFlash = await modelFlash.generateContent("Test flash model");
+    console.log("✅ Model 'gemini-1.5-flash' hoạt động tốt:", resultFlash.response.text());
 
-        console.log("\n🔍 MODEL TÌM KIẾM (Chọn 1 cái tên dưới đây):");
-        embedModels.forEach(m => console.log(`   - "${m}"`));
-        console.log("---------------------------------------");
-
-    } else {
-        console.log("❌ Lỗi từ Google:", data);
-    }
   } catch (error) {
-    console.error("❌ Lỗi kết nối:", error.message);
+    console.error("❌ Lỗi Model:", error.message);
+    if (error.message.includes("404")) {
+      console.log("👉 Gợi ý: Model này chưa được hỗ trợ hoặc tên sai. Hãy dùng 'gemini-pro' thay thế.");
+    }
   }
 }
 
-getModels();
+listModels();

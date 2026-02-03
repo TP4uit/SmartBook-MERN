@@ -55,20 +55,7 @@ export function Navbar({ hideSearch, activeScreen: activeScreenProp }: NavbarPro
           </span>
         </Link>
 
-        {/* 2. SEARCH BAR */}
-        {!hideSearch && (
-          <div className="flex-1 max-w-2xl hidden md:block">
-            <div className="flex items-center gap-2">
-              <div className="h-12 w-12 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-center">
-                <Search className="h-4 w-4 text-gray-400" />
-              </div>
-              <Input 
-                className="flex-1 bg-gray-50 border-gray-200 focus-visible:ring-[#008080] py-5 rounded-xl"
-                placeholder="Tìm kiếm sách..."
-              />
-            </div>
-          </div>
-        )}
+        
 
         {/* 3. RIGHT ACTIONS */}
         <div className="flex items-center gap-4">

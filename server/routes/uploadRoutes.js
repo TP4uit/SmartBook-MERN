@@ -11,8 +11,8 @@ const storage = multer.diskStorage({
     cb(null, 'uploads/');
   },
   filename(req, file, cb) {
-    // Đặt tên file: fieldname + ngày tháng + đuôi file gốc
-    // VD: image-123456789.jpg
+    // Đặt tên file duy nhất: fieldname + ngày tháng + đuôi file gốc
+    // VD: image-1770061449442.jpg
     cb(
       null,
       `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`
@@ -23,7 +23,7 @@ const storage = multer.diskStorage({
 // 2. Bộ lọc file (Chỉ nhận ảnh)
 function checkFileType(file, cb) {
   const filetypes = /jpg|jpeg|png|webp/;
-  // Check extension
+  // Check extension (đuôi file)
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
   // Check mime type
   const mimetype = filetypes.test(file.mimetype);
@@ -45,13 +45,13 @@ const upload = multer({
 });
 
 // 4. Route xử lý Upload
-// Frontend sẽ gọi POST /api/upload với key form-data là 'image'
+// Frontend gửi POST /api/upload với key 'image'
 router.post('/', upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).send({ message: 'Vui lòng chọn file ảnh' });
   }
-  // Trả về đường dẫn tương đối để lưu vào DB
-  // VD: /uploads/image-123.jpg
+  // Trả về đường dẫn để Frontend lưu vào DB
+  // Chuyển đổi dấu \ thành / để tránh lỗi trên Windows
   res.send(`/${req.file.path.replace(/\\/g, '/')}`);
 });
 
