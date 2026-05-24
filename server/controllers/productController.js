@@ -157,6 +157,43 @@ const searchProductsAI = async (req, res) => {
   }
 };
 
+// @desc    Lấy danh sách sách gợi ý từ AI Microservice
+// @route   GET /api/products/recommendations
+// @access  Public (hoặc Private tùy bạn setup route)
+export const getRecommendedBooks = async (req, res) => {
+  try {
+    // Lấy ID user nếu đã đăng nhập, ngược lại gán mặc định là "guest" để kích hoạt Cold Start
+    const userId = req.user ? req.user._id.toString() : "guest";
+    
+    // Gọi sang AI Microservice chạy ở cổng 8000
+    const aiResponse = await axios.post('http://localhost:8000/api/recommend', {
+      user_id: userId,
+      age: 22.0,           // Truyền tuổi vào để Logistic Regression xử lý Cold Start
+      location: "vietnam",
+      alpha: 0.5           // Cân bằng 50% Collaborative Filtering và 50% Content-Based
+    });
+
+    const { recommended_isbns, type } = aiResponse.data;
+
+    // Tìm kiếm trong MongoDB các cuốn sách có mã ISBN khớp với AI trả về
+    const recommendedBooks = await Book.find({ ISBN: { $in: recommended_isbns } });
+
+    res.status(200).json({
+      success: true,
+      recommendation_type: type, // "Cold Start" hoặc "Hybrid CF+CB"
+      count: recommendedBooks.length,
+      books: recommendedBooks
+    });
+
+  } catch (error) {
+    console.error("Lỗi khi gọi AI Microservice:", error.message);
+    res.status(500).json({ 
+      success: false, 
+      message: "Không thể lấy gợi ý sách lúc này. Vui lòng thử lại sau." 
+    });
+  }
+};
+
 module.exports = {
   getProducts,
   getProductById,
