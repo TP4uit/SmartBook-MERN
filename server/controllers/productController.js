@@ -160,7 +160,7 @@ const searchProductsAI = async (req, res) => {
 // @desc    Lấy danh sách sách gợi ý từ AI Microservice
 // @route   GET /api/products/recommendations
 // @access  Public (hoặc Private tùy bạn setup route)
-export const getRecommendedBooks = async (req, res) => {
+const getRecommendedBooks = async (req, res) => {
   try {
     // Lấy ID user nếu đã đăng nhập, ngược lại gán mặc định là "guest" để kích hoạt Cold Start
     const userId = req.user ? req.user._id.toString() : "guest";
@@ -201,4 +201,5 @@ module.exports = {
   updateProduct,
   deleteProduct,
   searchProductsAI, // Export thêm hàm này
+  getRecommendedBooks // Export hàm gợi ý sách
 };

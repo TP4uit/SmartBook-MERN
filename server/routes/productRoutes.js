@@ -9,11 +9,15 @@ const {
   createProduct,
   updateProduct,
   deleteProduct,
-  searchProductsAI, // Import hàm mới
+  searchProductsAI,
+  getRecommendedBooks, // Import hàm mới
 } = productController;
 
 // Route AI Search (Phải đặt trước route /:id để tránh conflict)
 router.post('/ai-search', searchProductsAI); 
+
+// Route để lấy sách gợi ý từ AI
+router.get('/recommendations', getRecommendedBooks);
 
 router.route('/')
   .get(getProducts)
