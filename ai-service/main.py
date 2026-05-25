@@ -30,32 +30,33 @@ class RecommendRequest(BaseModel):
 def recommend_books(req: RecommendRequest):
     user_code = mappings['user'].get(req.user_id)
     
+    # 1. Tính toán điểm Content-Based (CB) dựa trên Age và Location cho TẤT CẢ các trường hợp
+    loc_code = mappings['location'].get(req.location, 0)
+    X_input = np.array([[req.age, loc_code]] * len(all_book_codes))
+    cb_scores = cb_model.predict_proba(X_input)[:, 1] # Điểm xác suất thích sách từ Logistic Regression
+    
     if user_code is None:
         # --- COLD START (User Mới) ---
-        # Theo bài báo, ta dùng Content-Based cho Cold Start.
-        # Ở đây ta lấy top 10 sách mặc định để xử lý giao diện cho user mới tinh
-        fallback_isbns = list(reverse_book_mapping.values())[:10]
+        # Bài báo sử dụng Linear/Logistic Regression dựa trên Age và Location cho Cold Start
+        top_10_indices = cb_scores.argsort()[-10:][::-1]
+        recommended_isbns = [reverse_book_mapping[idx] for idx in top_10_indices]
+        
         return {
             "status": 200,
-            "type": "Cold Start",
-            "recommended_isbns": fallback_isbns
+            "type": "Cold Start (Content-Based)",
+            "recommended_isbns": recommended_isbns
         }
     else:
-        # --- WARM START (User Cũ - Áp dụng Hybrid CF + CB) ---
+        # --- WARM START (User Cũ - Hybrid CF + CB) ---
         user_codes_array = np.array([user_code] * len(all_book_codes))
         
-        # Điểm CF (Deep Learning Embedding)
+        # 2. Tính điểm Collaborative Filtering (CF) với Embedding + Biases
         cf_scores = cf_model.predict([user_codes_array, all_book_codes], verbose=0).flatten()
         
-        # Điểm CB (Logistic Regression) 
-        loc_code = mappings['location'].get(req.location, 0)
-        X_input = np.array([[req.age, loc_code]] * len(all_book_codes))
-        cb_scores = cb_model.predict_proba(X_input)[:, 1]
-        
-        # Công thức tính điểm Hybrid
+        # 3. Phương trình Hybrid của bài báo
         hybrid_scores = (req.alpha * cf_scores) + ((1 - req.alpha) * cb_scores)
         
-        # Lấy Top 10 ID sách (ISBN) có điểm Hybrid cao nhất
+        # Lấy Top 10 ID sách (ISBN)
         top_10_indices = hybrid_scores.argsort()[-10:][::-1]
         recommended_isbns = [reverse_book_mapping[idx] for idx in top_10_indices]
         

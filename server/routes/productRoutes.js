@@ -17,7 +17,7 @@ const {
 router.post('/ai-search', searchProductsAI); 
 
 // Route để lấy sách gợi ý từ AI
-router.get('/recommendations', getRecommendedBooks);
+router.get('/recommendations', protect, getRecommendedBooks);
 
 router.route('/')
   .get(getProducts)

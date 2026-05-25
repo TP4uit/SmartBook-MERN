@@ -31,6 +31,16 @@ const getProducts = async (req, res) => {
   }
 };
 
+// --- HÀM HELPER TÍNH TUỔI ---
+const calculateAge = (dateOfBirth) => {
+  // Nếu user chưa cập nhật ngày sinh, lấy mặc định 22 tuổi cho AI
+  if (!dateOfBirth) return 22; 
+  
+  const diff_ms = Date.now() - new Date(dateOfBirth).getTime();
+  const age_dt = new Date(diff_ms); 
+  return Math.abs(age_dt.getUTCFullYear() - 1970);
+};
+
 // @desc    Fetch single product (Giữ nguyên)
 const getProductById = async (req, res) => {
   try {
@@ -163,38 +173,53 @@ const searchProductsAI = async (req, res) => {
 // @access  Public
 const getRecommendedBooks = async (req, res) => {
   try {
-    const userId = req.user ? req.user._id.toString() : "guest";
-    
-    // Gọi AI (Cổng 8000)
-    const aiResponse = await axios.post('http://localhost:8000/api/recommend', {
-      user_id: userId,
-      age: 22.0,
-      location: "vietnam",
-      alpha: 0.5
-    });
+    // 1. Xác định User (Giả sử route này đã đi qua middleware protect, có req.user)
+    // Nếu user chưa đăng nhập (khách vãng lai), ta có thể truyền ID giả hoặc gán age/location mặc định
+    let userId = "guest";
+    let age = 22;
+    let location = "vietnam";
+    let alpha = req.query.alpha ? parseFloat(req.query.alpha) : 0.5; // Cho phép đổi alpha từ Frontend để demo
 
-    const { recommended_isbns, type } = aiResponse.data;
-
-    // Tìm sách theo ISBN AI trả về
-    let recommendedBooks = await Book.find({ ISBN: { $in: recommended_isbns } });
-
-    // HACKATHON TRICK: Bù lấp dữ liệu
-    // Nếu database của bạn chưa có data khớp với Kaggle -> mảng rỗng -> UI không hiện
-    // Ta bốc đại 4-5 cuốn sách mới nhất trong DB lên để làm minh chứng UI cho hội đồng xem
-    if (recommendedBooks.length === 0) {
-        recommendedBooks = await Book.find({}).limit(5); 
+    if (req.user) {
+      // Tìm lại thông tin user từ DB để chắc chắn có field location và dateOfBirth
+      const currentUser = await User.findById(req.user._id);
+      if (currentUser) {
+        userId = currentUser._id.toString();
+        age = calculateAge(currentUser.dateOfBirth);
+        // Đảm bảo location gửi sang Python luôn viết thường và không dấu (nếu dictionary yêu cầu)
+        location = currentUser.location ? currentUser.location.toLowerCase() : "vietnam";
+      }
     }
 
-    res.status(200).json({
+    // 2. Gửi payload hoàn chỉnh sang AI Service (FastAPI đang chạy ở cổng 8000)
+    const aiResponse = await axios.post('http://localhost:8000/api/recommend', {
+      user_id: userId,
+      age: age,
+      location: location,
+      alpha: alpha 
+    });
+
+    // 3. AI trả về mảng ISBN. Nhiệm vụ của Node.js là lấy mảng ISBN này quét DB để lấy data sách thật
+    const recommendedISBNs = aiResponse.data.recommended_isbns;
+    
+    // Tìm các cuốn sách khớp với mã ISBN trả về
+    const books = await Book.find({ ISBN: { $in: recommendedISBNs } });
+
+    // Sắp xếp lại danh sách books cho đúng với thứ tự mảng ISBN mà AI đã xếp hạng cao xuống thấp
+    const sortedBooks = recommendedISBNs
+      .map(isbn => books.find(b => b.ISBN === isbn))
+      .filter(b => b !== undefined);
+
+    // 4. Trả kết quả về cho Frontend
+    res.json({
       success: true,
-      recommendation_type: type, // Cái này rất quan trọng để hiện lên Badge UI
-      count: recommendedBooks.length,
-      books: recommendedBooks
+      type: aiResponse.data.type, // Gửi kèm "Cold Start" hay "Hybrid" để Frontend hiển thị nhãn demo
+      books: sortedBooks
     });
 
   } catch (error) {
-    console.error("Lỗi khi gọi AI:", error.message);
-    res.status(500).json({ success: false, message: "Lỗi AI Microservice" });
+    console.error('Lỗi khi gọi AI Recommendation:', error.message);
+    res.status(500).json({ message: 'Lỗi server khi phân tích gợi ý sách' });
   }
 };
 

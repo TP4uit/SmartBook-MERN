@@ -22,11 +22,11 @@ const bookSchema = mongoose.Schema(
       ref: 'User',
     },
     shop_id: { // Thêm shop_id để tách đơn hàng seller
-      ISBN: { type: String }, // Mã số sách quốc tế (nếu có)
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User', 
       required: true 
     },
+    ISBN: { type: String, required: true, unique: true },
     title: { type: String, required: true },
     image: { type: String, required: true }, // Ảnh đại diện chính (Thumbnail)
     images: [{ type: String }], // Mảng ảnh chi tiết (Carousel)
