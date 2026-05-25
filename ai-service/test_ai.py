@@ -28,7 +28,7 @@ def test_paper_cold_start_logic():
     data = response.json()
     
     # Kiểm tra rẽ nhánh chính xác
-    assert data["type"] == "Cold Start", f"Lỗi: Thuật toán không rẽ nhánh Cold Start. Đang ở {data['type']}"
+    assert data["type"] == "Cold Start (Content-Based)", f"Lỗi: Thuật toán không rẽ nhánh Cold Start. Đang ở {data['type']}"
     # Kiểm tra đầu ra phải đủ 10 kết quả
     assert len(data["recommended_isbns"]) == 10, "Lỗi: Không trả về đủ số lượng sách cho Cold Start"
 
@@ -47,7 +47,7 @@ def test_paper_hybrid_logic():
     assert response.status_code == 200
     data = response.json()
     
-    if data["type"] == "Cold Start":
+    if data["type"] == "Cold Start (Content-Based)":
         # Bỏ qua nếu user ID này xui xẻo bị loại lúc tiền xử lý
         pass 
     else:

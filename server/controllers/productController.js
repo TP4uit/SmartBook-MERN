@@ -1,3 +1,4 @@
+const User = require('../models/User'); // Import model User để lấy thông tin user khi cần
 const axios = require('axios'); // Thêm axios để gọi AI Microservice
 const Book = require('../models/Book');
 const { analyzeBookSearch } = require('../utils/ai'); // Import hàm AI
@@ -198,6 +199,11 @@ const getRecommendedBooks = async (req, res) => {
       location: location,
       alpha: alpha 
     });
+
+    if (aiResponse.data.status === 500 || !aiResponse.data.recommended_isbns) {
+      console.error("Lỗi chi tiết từ Python AI:", aiResponse.data.error);
+      return res.status(500).json({ success: false, message: 'Lỗi mô hình AI', error: aiResponse.data.error });
+    }
 
     // 3. AI trả về mảng ISBN. Nhiệm vụ của Node.js là lấy mảng ISBN này quét DB để lấy data sách thật
     const recommendedISBNs = aiResponse.data.recommended_isbns;

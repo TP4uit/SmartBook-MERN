@@ -3,8 +3,11 @@ import { Navbar } from '../layout/Navbar';
 import { Footer } from '../layout/Footer';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Badge } from '../ui/badge';
+import { Slider } from '../ui/slider';
+import { Skeleton } from '../ui/skeleton';
 import { Sparkles, ArrowRight, Star, Loader2, Cpu } from 'lucide-react'; 
-import api from '../../services/api';
+import api, { getRecommendedBooks } from '../../services/api';
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600';
 const SERVER_URL = 'http://localhost:5000';
@@ -48,10 +51,24 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<Book[]>([]);
 
+  const [alpha, setAlpha] = useState<number>(0.5);
   // State cho AI Recommendations (Hybrid CF+CB / Cold Start từ Microservice)
   const [recommendations, setRecommendations] = useState<Book[]>([]);
-  const [recType, setRecType] = useState<string>('');
+  const [recommendationType, setRecommendationType] = useState<string>('');
   const [isLoadingRecs, setIsLoadingRecs] = useState(true);
+
+  const getAuthToken = (): string | undefined => {
+    const userInfo = localStorage.getItem('userInfo');
+    if (userInfo) {
+      try {
+        const parsed = JSON.parse(userInfo);
+        return parsed.token ?? undefined;
+      } catch {
+        return localStorage.getItem('token') ?? undefined;
+      }
+    }
+    return localStorage.getItem('token') ?? undefined;
+  };
 
   useEffect(() => {
     const fetchBooks = async () => {
@@ -68,24 +85,28 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
       }
     };
 
+    fetchBooks();
+  }, []);
+
+  useEffect(() => {
     const fetchRecommendations = async () => {
+      setIsLoadingRecs(true);
       try {
-        // Gọi API Recommendation lấy dữ liệu từ Python AI Microservice
-        const { data } = await api.get('/products/recommendations');
-        if (data && data.books) {
-          setRecommendations(data.books);
-          setRecType(data.recommendation_type);
-        }
+        const token = getAuthToken();
+        const data = await getRecommendedBooks(alpha, token);
+        setRecommendations(Array.isArray(data.books) ? data.books : []);
+        setRecommendationType(data.type || '');
       } catch (err) {
         console.error('Fetch AI recommendations error:', err);
+        setRecommendations([]);
+        setRecommendationType('');
       } finally {
         setIsLoadingRecs(false);
       }
     };
 
-    fetchBooks();
     fetchRecommendations();
-  }, []);
+  }, [alpha]);
 
   // Xử lý tìm kiếm AI
   const handleAISearch = async () => {
@@ -147,10 +168,10 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         </section>
 
         {/* PERSONALIZED AI RECOMMENDATIONS SECTION (PHASE 4) */}
-        {!isLoadingRecs && recommendations.length > 0 && (
-          <section className="py-12 bg-white border-b border-gray-100">
-            <div className="container mx-auto px-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <section className="py-12 bg-white border-b border-gray-100">
+          <div className="container mx-auto px-4">
+            <div className="flex flex-col gap-6 mb-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-[#008080]/10 rounded-lg">
                     <Cpu className="h-6 w-6 text-[#008080]" />
@@ -160,39 +181,61 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
                     <p className="text-sm text-gray-500">Được phân tích dựa trên sở thích và dữ liệu cá nhân</p>
                   </div>
                 </div>
-                {/* Badge hiển thị loại thuật toán cho báo cáo */}
-                <div className="px-4 py-2 bg-gradient-to-r from-[#008080]/10 to-[#008080]/5 border border-[#008080]/20 rounded-full flex items-center gap-2">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#008080] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-[#008080]"></span>
-                  </span>
-                  <span className="text-sm font-semibold text-[#008080]">
-                    Thuật toán AI: {recType}
-                  </span>
+                <div className="flex flex-col gap-2 w-full max-w-xl">
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>Trọng số Hybrid (Alpha): {alpha.toFixed(1)}</span>
+                    <Badge variant="outline">{recommendationType || 'Đang tải...'}</Badge>
+                  </div>
+                  <Slider
+                    value={[alpha]}
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    onValueChange={(value) => setAlpha(value[0])}
+                    className="py-4"
+                  />
                 </div>
               </div>
-              
-              <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x">
-                {recommendations.map((book) => (
-                  <div key={book._id} className="min-w-[200px] md:min-w-[240px] bg-white rounded-xl p-4 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer snap-start border border-gray-100 hover:border-[#008080]/50 group relative" onClick={() => onNavigate('product-detail', book._id)}>
-                    <div className="absolute -top-3 -right-3 z-10 bg-[#FFC107] text-white text-xs font-bold px-2 py-1 rounded-full shadow-md transform rotate-12 group-hover:scale-110 transition-transform">
-                      Top Match
+
+              {isLoadingRecs ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {[1, 2, 3, 4].map((item) => (
+                    <div key={item} className="rounded-xl border border-gray-100 p-4 bg-white shadow-sm">
+                      <Skeleton className="h-48 w-full rounded-lg mb-4" />
+                      <Skeleton className="h-6 w-3/4 mb-2" />
+                      <Skeleton className="h-4 w-1/2 mb-2" />
+                      <div className="flex items-center justify-between gap-4">
+                        <Skeleton className="h-8 w-1/3 rounded-full" />
+                        <Skeleton className="h-8 w-1/4 rounded-full" />
+                      </div>
                     </div>
-                    <div className="aspect-[2/3] rounded-lg overflow-hidden mb-4 bg-gray-50">
-                      <img src={getBookImage(book)} alt={book.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  ))}
+                </div>
+              ) : recommendations.length === 0 ? (
+                <p className="text-gray-500 italic">Chưa có đề xuất. Hãy thử thay đổi giá trị Alpha hoặc đăng nhập để nhận gợi ý cá nhân hơn.</p>
+              ) : (
+                <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x">
+                  {recommendations.map((book) => (
+                    <div key={book._id} className="min-w-[200px] md:min-w-[240px] bg-white rounded-xl p-4 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer snap-start border border-gray-100 hover:border-[#008080]/50 group relative" onClick={() => onNavigate('product-detail', book._id)}>
+                      <div className="absolute -top-3 -right-3 z-10 bg-[#FFC107] text-white text-xs font-bold px-2 py-1 rounded-full shadow-md transform rotate-12 group-hover:scale-110 transition-transform">
+                        Top Match
+                      </div>
+                      <div className="aspect-[2/3] rounded-lg overflow-hidden mb-4 bg-gray-50">
+                        <img src={getBookImage(book)} alt={book.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      </div>
+                      <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 group-hover:text-[#008080]">{book.title}</h3>
+                      <p className="text-sm text-gray-500 mb-2">{book.author ?? '—'}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[#008080]">{book.price?.toLocaleString('vi-VN')}đ</span>
+                        <div className="flex items-center text-xs text-yellow-500"><Star className="h-3 w-3 fill-current" /> {getBookRating(book) || '—'}</div>
+                      </div>
                     </div>
-                    <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 group-hover:text-[#008080]">{book.title}</h3>
-                    <p className="text-sm text-gray-500 mb-2">{book.author ?? '—'}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-[#008080]">{book.price?.toLocaleString('vi-VN')}đ</span>
-                      <div className="flex items-center text-xs text-yellow-500"><Star className="h-3 w-3 fill-current" /> {getBookRating(book) || '—'}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </section>
-        )}
+          </div>
+        </section>
 
         {/* AI Suggestions (Semantic Search Results) */}
         <section className="py-16 bg-[#F5F5DC]/50">
