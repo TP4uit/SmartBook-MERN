@@ -174,25 +174,32 @@ const searchProductsAI = async (req, res) => {
 // @access  Public
 const getRecommendedBooks = async (req, res) => {
   try {
-    // 1. Xác định User (Giả sử route này đã đi qua middleware protect, có req.user)
-    // Nếu user chưa đăng nhập (khách vãng lai), ta có thể truyền ID giả hoặc gán age/location mặc định
     let userId = "guest";
     let age = 22;
     let location = "vietnam";
-    let alpha = req.query.alpha ? parseFloat(req.query.alpha) : 0.5; // Cho phép đổi alpha từ Frontend để demo
+    let alpha = req.query.alpha ? parseFloat(req.query.alpha) : 0.5;
+    
+    // Tạo biến userEmail ở ngoài cùng để console.log không bị lỗi
+    let userEmail = "Guest"; 
 
     if (req.user) {
-      // Tìm lại thông tin user từ DB để chắc chắn có field location và dateOfBirth
       const currentUser = await User.findById(req.user._id);
       if (currentUser) {
-        userId = currentUser._id.toString();
+        userEmail = currentUser.email; // Lưu lại email để in ra
+        
+        // --- PERSONA MAPPING (Kế thừa User từ Kaggle) ---
+        if (currentUser.email === "kaggle_fan@smartbook.com") {
+           userId = "277427"; // ID thật trên Kaggle
+        } else {
+           userId = currentUser._id.toString(); 
+        }
+        
         age = calculateAge(currentUser.dateOfBirth);
-        // Đảm bảo location gửi sang Python luôn viết thường và không dấu (nếu dictionary yêu cầu)
         location = currentUser.location ? currentUser.location.toLowerCase() : "vietnam";
       }
     }
 
-    // 2. Gửi payload hoàn chỉnh sang AI Service (FastAPI đang chạy ở cổng 8000)
+    // 2. Gửi payload sang AI Service
     const aiResponse = await axios.post('http://localhost:8000/api/recommend', {
       user_id: userId,
       age: age,
@@ -202,24 +209,62 @@ const getRecommendedBooks = async (req, res) => {
 
     if (aiResponse.data.status === 500 || !aiResponse.data.recommended_isbns) {
       console.error("Lỗi chi tiết từ Python AI:", aiResponse.data.error);
-      return res.status(500).json({ success: false, message: 'Lỗi mô hình AI', error: aiResponse.data.error });
+      return res.status(500).json({ success: false, message: 'Lỗi mô hình AI' });
     }
 
-    // 3. AI trả về mảng ISBN. Nhiệm vụ của Node.js là lấy mảng ISBN này quét DB để lấy data sách thật
     const recommendedISBNs = aiResponse.data.recommended_isbns;
     
-    // Tìm các cuốn sách khớp với mã ISBN trả về
-    const books = await Book.find({ ISBN: { $in: recommendedISBNs } });
+    // --- KHÁM BỆNH BẰNG CONSOLE.LOG ---
+    console.log("\n================ KẾT QUẢ KHÁM BỆNH ================");
+    console.log("1. User đang test là:", userEmail);
+    console.log("2. Mã ISBN mà AI (FastAPI) gợi ý trả về:", recommendedISBNs);
+    
+    let booksInDB = await Book.find({ ISBN: { $in: recommendedISBNs } });
+    console.log("3. Số sách tìm thấy sẵn trong MongoDB:", booksInDB.length);
 
-    // Sắp xếp lại danh sách books cho đúng với thứ tự mảng ISBN mà AI đã xếp hạng cao xuống thấp
+    // =====================================================================
+    // CHẾ ĐỘ ANTIGRAVITY: TỰ ĐỘNG SINH SÁCH NẾU DB BỊ THIẾU
+    // =====================================================================
+    const existingISBNs = booksInDB.map(b => b.ISBN);
+    const missingISBNs = recommendedISBNs.filter(isbn => !existingISBNs.includes(isbn));
+
+    if (missingISBNs.length > 0) {
+      console.log(`4. Antigravity đang tự động tạo ${missingISBNs.length} cuốn sách bị thiếu...`);
+      
+      // Lấy tạm 1 Admin và 1 Seller để gán quyền sở hữu sách
+      const admin = await User.findOne({ role: 'admin' });
+      const seller = await User.findOne({ role: 'seller' });
+
+      const newBooksToInsert = missingISBNs.map(isbn => ({
+          user: admin ? admin._id : req.user._id, 
+          shop_id: seller ? seller._id : req.user._id,
+          ISBN: isbn,
+          title: `Sách Kaggle (Mã: ${isbn})`,
+          author: "Tác giả Dataset",
+          category: "AI Recommended",
+          price: Math.floor(Math.random() * 100 + 50) * 1000, // Random giá từ 50k - 150k
+          countInStock: 100,
+          // Kaggle Book-Crossing dùng link Amazon lấy ảnh bằng ISBN cực xịn
+          image: `https://images.amazon.com/images/P/${isbn}.01.LZZZZZZZ.jpg`,
+          description: "Cuốn sách này được hệ thống tự động sinh ra dựa trên dự đoán của Trí Tuệ Nhân Tạo."
+      }));
+
+      const insertedBooks = await Book.insertMany(newBooksToInsert);
+      // Đưa các sách vừa tạo mới gộp chung vào mảng kết quả
+      booksInDB = [...booksInDB, ...insertedBooks]; 
+      console.log("-> Đã tạo sách thành công!");
+    }
+    console.log("====================================================\n");
+
+    // 3. Sắp xếp lại đúng thứ tự từ cao đến thấp mà AI đã dự đoán
     const sortedBooks = recommendedISBNs
-      .map(isbn => books.find(b => b.ISBN === isbn))
+      .map(isbn => booksInDB.find(b => b.ISBN === isbn))
       .filter(b => b !== undefined);
 
     // 4. Trả kết quả về cho Frontend
     res.json({
       success: true,
-      type: aiResponse.data.type, // Gửi kèm "Cold Start" hay "Hybrid" để Frontend hiển thị nhãn demo
+      type: aiResponse.data.type, 
       books: sortedBooks
     });
 
