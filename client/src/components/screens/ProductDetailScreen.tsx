@@ -6,7 +6,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { Star, MessageCircle, ShoppingCart, ShieldCheck, Truck, Sparkles, ArrowLeft } from 'lucide-react';
-import api from '../../services/api';
+import api, { createProductReview } from '../../services/api';
 import { useCart } from '../../hooks/useCart';
 import { toast } from 'sonner';
 
@@ -16,6 +16,14 @@ const SERVER_URL = 'http://localhost:5000';
 interface ProductDetailScreenProps {
   onNavigate: (screen: string, productId?: string) => void;
   productId?: string | null;
+}
+
+interface Review {
+  _id: string;
+  name: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
 }
 
 interface BookDetail {
@@ -34,6 +42,7 @@ interface BookDetail {
   rating_count?: number;
   sold_quantity?: number;
   shop_id?: { _id: string; name?: string; shop_info?: { shop_name?: string; shop_avatar?: string } } | string;
+  reviews?: Review[];
 }
 
 function getBookImage(book: BookDetail): string {
@@ -53,20 +62,70 @@ export function ProductDetailScreen({ onNavigate }: ProductDetailScreenProps) {
   const [loading, setLoading] = useState(true);
   const [similarBooks, setSimilarBooks] = useState<BookDetail[]>([]);
 
+  // --- STATE CHO ĐÁNH GIÁ ---
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submitLoading, setSubmitLoading] = useState(false);
+
+  // --- TÁCH HÀM FETCH RA ĐỂ CÓ THỂ GỌI LẠI SAU KHI COMMENT ---
+  const fetchProduct = async () => {
+    try {
+      const { data } = await api.get(`/products/${id}`);
+      setBook(data);
+      setSimilarBooks([]); 
+    } catch (error) {
+      console.error('Lỗi tải sách:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchProduct = async () => {
-      try {
-        const { data } = await api.get(`/products/${id}`);
-        setBook(data);
-        setSimilarBooks([]); 
-      } catch (error) {
-        console.error('Lỗi tải sách:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     if (id) fetchProduct();
   }, [id]);
+
+  // --- XỬ LÝ GỬI ĐÁNH GIÁ ---
+  const submitReviewHandler = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (rating === 0) {
+      toast.error('Vui lòng chọn số sao đánh giá!');
+      return;
+    }
+    if (!comment.trim()) {
+      toast.error('Vui lòng nhập nội dung đánh giá!');
+      return;
+    }
+
+    try {
+      setSubmitLoading(true);
+      await createProductReview(id as string, { rating, comment });
+      toast.success('Gửi đánh giá thành công!');
+      setRating(0); // Reset form
+      setComment('');
+      fetchProduct(); // Cập nhật lại list comment và số sao trung bình
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Lỗi khi gửi đánh giá. Vui lòng đăng nhập.');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  // --- COMPONENT VẼ SAO ---
+  const renderStars = (currentRating: number, interactive = false) => {
+    return (
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`h-5 w-5 ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''} ${
+              star <= currentRating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
+            }`}
+            onClick={interactive ? () => setRating(star) : undefined}
+          />
+        ))}
+      </div>
+    );
+  };
 
   const handleAddToCart = () => {
     if (book) {
@@ -208,6 +267,62 @@ export function ProductDetailScreen({ onNavigate }: ProductDetailScreenProps) {
                 {book.description || 'Đang cập nhật...'}
               </p>
             </div>
+            {/* ----- KHU VỰC ĐÁNH GIÁ & BÌNH LUẬN ----- */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-lg mb-5">Đánh giá & Bình luận ({book.numReviews || 0})</h3>
+              
+              {/* Form gửi đánh giá */}
+              <form onSubmit={submitReviewHandler} className="mb-8 border-b border-gray-100 pb-6">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="text-sm font-medium text-gray-700">Chất lượng sản phẩm:</span>
+                  {renderStars(rating, true)}
+                </div>
+                <div className="mb-3">
+                  <textarea
+                    rows={3}
+                    className="w-full border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-[#008080] focus:ring-1 focus:ring-[#008080]"
+                    placeholder="Xin mời chia sẻ cảm nhận, đánh giá của bạn về cuốn sách này..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                  ></textarea>
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={submitLoading}
+                  className="bg-[#008080] hover:bg-[#006666]"
+                >
+                  {submitLoading ? 'Đang gửi...' : 'Gửi đánh giá'}
+                </Button>
+              </form>
+
+              {/* Danh sách đánh giá */}
+              <div className="space-y-6">
+                {book.reviews && book.reviews.length > 0 ? (
+                  book.reviews.map((review) => (
+                    <div key={review._id} className="flex gap-4">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center font-bold text-gray-500">
+                        {review.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold text-sm text-gray-900">{review.name}</span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(review.createdAt).toLocaleDateString('vi-VN')}
+                          </span>
+                        </div>
+                        <div className="mb-2">{renderStars(review.rating)}</div>
+                        <p className="text-sm text-gray-700 leading-relaxed">{review.comment}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-sm text-gray-500 py-4 italic">
+                    Chưa có đánh giá nào. Hãy là người đầu tiên đánh giá sản phẩm này!
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* ----- KẾT THÚC KHU VỰC ĐÁNH GIÁ ----- */}
           </div>
 
           <div className="md:col-span-12 lg:col-span-3">

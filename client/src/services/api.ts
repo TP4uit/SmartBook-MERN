@@ -128,3 +128,8 @@ export const getRecommendedBooks = async (
 
   return data;
 };
+
+export const createProductReview = async (productId: string, review: { rating: number; comment: string }) => {
+  const { data } = await api.post(`/products/${productId}/reviews`, review);
+  return data;
+};

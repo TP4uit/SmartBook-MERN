@@ -30,6 +30,6 @@ router.route('/:id')
   .delete(protect, seller, deleteProduct);
 
 // Route để tạo đánh giá cho sách
-router.post('/:id/reviews', protect, createProductReview);
+router.route('/:id/reviews').post(protect, createProductReview);
 
 module.exports = router;
