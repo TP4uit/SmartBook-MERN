@@ -229,6 +229,69 @@ const getRecommendedBooks = async (req, res) => {
   }
 };
 
+const createProductReview = async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+    const book = await Book.findById(req.params.id);
+
+    if (book) {
+      // Kiểm tra xem user này đã đánh giá cuốn sách này chưa
+      const alreadyReviewed = book.reviews.find(
+        (r) => r.user.toString() === req.user._id.toString()
+      );
+
+      if (alreadyReviewed) {
+        return res.status(400).json({ message: 'Bạn đã đánh giá cuốn sách này rồi' });
+      }
+
+      // Tạo review mới
+      const review = {
+        name: req.user.name,
+        rating: Number(rating),
+        comment,
+        user: req.user._id,
+      };
+
+      book.reviews.push(review);
+      book.numReviews = book.reviews.length;
+      
+      // Tính lại điểm trung bình
+      book.rating =
+        book.reviews.reduce((acc, item) => item.rating + acc, 0) /
+        book.reviews.length;
+
+      await book.save();
+      res.status(201).json({ message: 'Đã thêm đánh giá thành công!' });
+    } else {
+      res.status(404).json({ message: 'Không tìm thấy sách' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+const exportRatingsCSV = async (req, res) => {
+  try {
+    const books = await Book.find({}).populate('reviews.user', '_id');
+    let csvData = "User-ID,ISBN,Book-Rating\n"; // Header chuẩn của Kaggle
+
+    books.forEach(book => {
+      if (book.reviews && book.reviews.length > 0) {
+        book.reviews.forEach(review => {
+          // Ghi từng dòng: ID_NguoiDung, Mã_Sách, Điểm
+          csvData += `${review.user._id},${book.ISBN},${review.rating}\n`;
+        });
+      }
+    });
+
+    res.header('Content-Type', 'text/csv');
+    res.attachment('smartbook_new_ratings.csv');
+    return res.send(csvData);
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi xuất dữ liệu' });
+  }
+};
+
 module.exports = {
   getProducts,
   getProductById,
@@ -236,5 +299,6 @@ module.exports = {
   updateProduct,
   deleteProduct,
   searchProductsAI, // Export thêm hàm này
-  getRecommendedBooks // Export hàm gợi ý sách
+  getRecommendedBooks, // Export hàm gợi ý sách
+  createProductReview // Export hàm tạo đánh giá sách
 };

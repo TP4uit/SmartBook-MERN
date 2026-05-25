@@ -11,6 +11,7 @@ const {
   deleteProduct,
   searchProductsAI,
   getRecommendedBooks, // Import hàm mới
+  createProductReview // Import hàm tạo đánh giá
 } = productController;
 
 // Route AI Search (Phải đặt trước route /:id để tránh conflict)
@@ -27,5 +28,8 @@ router.route('/:id')
   .get(getProductById)
   .put(protect, seller, updateProduct)
   .delete(protect, seller, deleteProduct);
+
+// Route để tạo đánh giá cho sách
+router.post('/:id/reviews', protect, createProductReview);
 
 module.exports = router;
