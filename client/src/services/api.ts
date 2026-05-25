@@ -102,3 +102,29 @@ export const getOrderById = async (id: string) => {
   const { data } = await api.get(`/orders/${id}`);
   return data;
 };
+
+export interface RecommendedBooksResponse {
+  success: boolean;
+  type: string;
+  books: Array<any>;
+}
+
+export const getRecommendedBooks = async (
+  alpha: number,
+  token?: string
+): Promise<RecommendedBooksResponse> => {
+  const config = token
+    ? {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    : undefined;
+
+  const { data } = await api.get<RecommendedBooksResponse>(
+    `/products/recommendations?alpha=${alpha}`,
+    config
+  );
+
+  return data;
+};
