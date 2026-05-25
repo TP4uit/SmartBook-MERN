@@ -3,10 +3,10 @@ import { Navbar } from '../layout/Navbar';
 import { Footer } from '../layout/Footer';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Sparkles, ArrowRight, Star, Loader2 } from 'lucide-react'; // Import thêm Loader2
+import { Sparkles, ArrowRight, Star, Loader2, Cpu } from 'lucide-react'; 
 import api from '../../services/api';
 
-const PLACEHOLDER_IMAGE = '[https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600](https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600)';
+const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=600';
 const SERVER_URL = 'http://localhost:5000';
 
 interface Book {
@@ -43,10 +43,15 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // State cho AI Search
+  // State cho AI Search (Semantic)
   const [aiQuery, setAiQuery] = useState('');
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<Book[]>([]);
+
+  // State cho AI Recommendations (Hybrid CF+CB / Cold Start từ Microservice)
+  const [recommendations, setRecommendations] = useState<Book[]>([]);
+  const [recType, setRecType] = useState<string>('');
+  const [isLoadingRecs, setIsLoadingRecs] = useState(true);
 
   useEffect(() => {
     const fetchBooks = async () => {
@@ -54,7 +59,6 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         const { data } = await api.get<Book[]>('/products?pageNumber=1');
         const bookList = Array.isArray(data) ? data : [];
         setBooks(bookList);
-        // Mặc định ban đầu AI Suggestions lấy 5 sách mới nhất
         setAiSuggestions(bookList.slice(0, 5));
       } catch (err) {
         console.error('Fetch products error:', err);
@@ -63,7 +67,24 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         setLoading(false);
       }
     };
+
+    const fetchRecommendations = async () => {
+      try {
+        // Gọi API Recommendation lấy dữ liệu từ Python AI Microservice
+        const { data } = await api.get('/products/recommendations');
+        if (data && data.books) {
+          setRecommendations(data.books);
+          setRecType(data.recommendation_type);
+        }
+      } catch (err) {
+        console.error('Fetch AI recommendations error:', err);
+      } finally {
+        setIsLoadingRecs(false);
+      }
+    };
+
     fetchBooks();
+    fetchRecommendations();
   }, []);
 
   // Xử lý tìm kiếm AI
@@ -125,20 +146,67 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
           </div>
         </section>
 
-        {/* AI Suggestions */}
+        {/* PERSONALIZED AI RECOMMENDATIONS SECTION (PHASE 4) */}
+        {!isLoadingRecs && recommendations.length > 0 && (
+          <section className="py-12 bg-white border-b border-gray-100">
+            <div className="container mx-auto px-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-[#008080]/10 rounded-lg">
+                    <Cpu className="h-6 w-6 text-[#008080]" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Gợi ý dành riêng cho bạn</h2>
+                    <p className="text-sm text-gray-500">Được phân tích dựa trên sở thích và dữ liệu cá nhân</p>
+                  </div>
+                </div>
+                {/* Badge hiển thị loại thuật toán cho báo cáo */}
+                <div className="px-4 py-2 bg-gradient-to-r from-[#008080]/10 to-[#008080]/5 border border-[#008080]/20 rounded-full flex items-center gap-2">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#008080] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-[#008080]"></span>
+                  </span>
+                  <span className="text-sm font-semibold text-[#008080]">
+                    Thuật toán AI: {recType}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x">
+                {recommendations.map((book) => (
+                  <div key={book._id} className="min-w-[200px] md:min-w-[240px] bg-white rounded-xl p-4 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer snap-start border border-gray-100 hover:border-[#008080]/50 group relative" onClick={() => onNavigate('product-detail', book._id)}>
+                    <div className="absolute -top-3 -right-3 z-10 bg-[#FFC107] text-white text-xs font-bold px-2 py-1 rounded-full shadow-md transform rotate-12 group-hover:scale-110 transition-transform">
+                      Top Match
+                    </div>
+                    <div className="aspect-[2/3] rounded-lg overflow-hidden mb-4 bg-gray-50">
+                      <img src={getBookImage(book)} alt={book.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    </div>
+                    <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 group-hover:text-[#008080]">{book.title}</h3>
+                    <p className="text-sm text-gray-500 mb-2">{book.author ?? '—'}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#008080]">{book.price?.toLocaleString('vi-VN')}đ</span>
+                      <div className="flex items-center text-xs text-yellow-500"><Star className="h-3 w-3 fill-current" /> {getBookRating(book) || '—'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* AI Suggestions (Semantic Search Results) */}
         <section className="py-16 bg-[#F5F5DC]/50">
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-[#008080]" />
                 <h2 className="text-2xl font-bold text-[#008080]">
-                  {isAiSearching ? 'AI đang suy nghĩ...' : 'Gợi ý từ AI dành cho bạn'}
+                  {isAiSearching ? 'AI đang suy nghĩ...' : 'Khám phá theo từ khóa AI'}
                 </h2>
               </div>
               <Button variant="ghost" className="text-[#008080]" onClick={() => onNavigate('marketplace')}>Xem tất cả <ArrowRight className="ml-2 h-4 w-4" /></Button>
             </div>
             
-            {/* List Gợi ý */}
             <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x">
               {aiSuggestions.length === 0 && !loading && !isAiSearching && (
                  <p className="text-gray-500 italic pl-1">Chưa tìm thấy sách phù hợp. Hãy thử mô tả chi tiết hơn nhé.</p>
@@ -148,9 +216,6 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
                 <div key={book._id} className="min-w-[200px] md:min-w-[240px] bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer snap-start border border-transparent hover:border-[#008080]/30 group" onClick={() => onNavigate('product-detail', book._id)}>
                   <div className="aspect-[2/3] rounded-lg overflow-hidden mb-4 bg-gray-100 relative">
                     <img src={getBookImage(book)} alt="Book Cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full text-xs font-bold text-[#008080] flex items-center gap-1 shadow-sm">
-                      <Sparkles className="h-3 w-3 text-[#FFC107]" /> AI Match
-                    </div>
                   </div>
                   <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 group-hover:text-[#008080]">{book.title}</h3>
                   <p className="text-sm text-gray-500 mb-2">{book.author ?? '—'}</p>

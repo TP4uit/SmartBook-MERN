@@ -22,6 +22,7 @@ const bookSchema = mongoose.Schema(
       ref: 'User',
     },
     shop_id: { // Thêm shop_id để tách đơn hàng seller
+      ISBN: { type: String }, // Mã số sách quốc tế (nếu có)
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User', 
       required: true 
